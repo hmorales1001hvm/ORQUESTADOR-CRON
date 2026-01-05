@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36623.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrquestadorCRON", "OrquestadorCRON.csproj", "{E411B6EF-3C02-4BC1-A45F-8AC87783E529}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Soltec.Orquestacion.BR", "..\Soltec.Orquestacion.BR\Soltec.Orquestacion.BR.csproj", "{DC735E41-2D50-EEBA-F46D-FF5BC6B671B2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Soltec.Orquestacion.DA", "..\Soltec.Orquestacion.DA\Soltec.Orquestacion.DA.csproj", "{D06C8442-81AD-3D9B-FEB1-31E670146DAD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Soltec.Orquestacion.Entidades", "..\Soltec.Orquestacion.Entidades\Soltec.Orquestacion.Entidades.csproj", "{3AA844DD-05FC-44D1-0A48-32401B15EF26}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E411B6EF-3C02-4BC1-A45F-8AC87783E529}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E411B6EF-3C02-4BC1-A45F-8AC87783E529}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E411B6EF-3C02-4BC1-A45F-8AC87783E529}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E411B6EF-3C02-4BC1-A45F-8AC87783E529}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DC735E41-2D50-EEBA-F46D-FF5BC6B671B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DC735E41-2D50-EEBA-F46D-FF5BC6B671B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DC735E41-2D50-EEBA-F46D-FF5BC6B671B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DC735E41-2D50-EEBA-F46D-FF5BC6B671B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D06C8442-81AD-3D9B-FEB1-31E670146DAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D06C8442-81AD-3D9B-FEB1-31E670146DAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D06C8442-81AD-3D9B-FEB1-31E670146DAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D06C8442-81AD-3D9B-FEB1-31E670146DAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B14A212D-3D65-47F9-9679-CAE78A8EF8F3}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,58 @@
+# ===============================
+# Visual Studio / VS Code
+# ===============================
+.vs/
+.vscode/
+
+# ===============================
+# Archivos de usuario
+# ===============================
+*.user
+*.suo
+*.userosscache
+*.userprefs
+
+# ===============================
+# Compilados .NET
+# ===============================
+bin/
+obj/
+
+# ===============================
+# Paquetes
+# ===============================
+packages/
+
+# ===============================
+# Publicación
+# ===============================
+*.pubxml
+*.pubxml.user
+
+# ===============================
+# Configuración sensible
+# ===============================
+App.config
+*.config
+*.settings
+Settings*.settings
+Settings*.Designer.cs
+
+# ===============================
+# Configuración runtime (.NET)
+# ===============================
+appsettings.json
+appsettings.*.json
+
+# ===============================
+# Bases de datos locales
+# ===============================
+*.mdf
+*.ldf
+*.dbmdl
+*.jfm
+
+# ===============================
+# Publicaciones
+# ===============================
+Publicado/
