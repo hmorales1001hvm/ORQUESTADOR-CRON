@@ -1149,7 +1149,7 @@ namespace Soltec.Orquestacion.BR
                 using var memoryStream = new MemoryStream(fileBytes);
                 using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
 
-                TransmisionHistorico transmisionHistorico = null;
+                ConectDB transmisionHistorico = null;
                 SalesDataDto salesDataDto = null;
 
                 foreach (var entry in archive.Entries)
@@ -1163,7 +1163,7 @@ namespace Soltec.Orquestacion.BR
 
                     if (entry.Name == $"{item.Clave}_infoDB.json")
                     {
-                        transmisionHistorico = JsonConvert.DeserializeObject<TransmisionHistorico>(jsonContent);
+                        transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
                     }
                     else if (entry.Name == $"{item.Clave}_data.json")
                     {
@@ -1228,7 +1228,7 @@ namespace Soltec.Orquestacion.BR
                 using var memoryStream = new MemoryStream(fileBytes);
                 using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
 
-                TransmisionHistorico transmisionHistorico = null;
+                ConectDB transmisionHistorico = null;
                 SalesDataDto salesDataDto = null;
 
                 foreach (var entry in archive.Entries)
@@ -1242,7 +1242,7 @@ namespace Soltec.Orquestacion.BR
 
                     if (entry.Name == $"{item.Clave}_infoDB.json")
                     {
-                        transmisionHistorico = JsonConvert.DeserializeObject<TransmisionHistorico>(jsonContent);
+                        transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
                     }
                     else if (entry.Name == $"{item.Clave}_data.json")
                     {

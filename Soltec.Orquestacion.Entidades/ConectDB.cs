@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Soltec.Orquestacion.Entidades
 {
-    public class TransmisionHistorico
+    public class ConectDB
     {
         public string Nombre { get; set; }
         public int IdSucursal { get; set; }

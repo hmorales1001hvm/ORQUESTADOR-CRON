@@ -4,7 +4,6 @@ using Newtonsoft.Json;
 using Soltec.Orquestacion.Entidades;
 using Soltec.Orquestacion.Entidades.DTOs;
 using System.IO.Compression;
-using System.Net.Http;
 
 namespace Soltec.Orquestacion.BR
 {
@@ -14,16 +13,14 @@ namespace Soltec.Orquestacion.BR
         private readonly ILogger<OnDemand> _logger;
         private readonly ApiSettings _apiSettings;
 
-        public OnDemand(
-            IHttpClientFactory httpClientFactory,
-            ILogger<OnDemand> logger,
-            IOptions<ApiSettings> apiSettings)
+        public OnDemand(IHttpClientFactory httpClientFactory, ILogger<OnDemand> logger, IOptions<ApiSettings> apiSettings)
         {
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _apiSettings = apiSettings.Value;
         }
 
+        
         public async Task DescargarDatosOnDemand(CancellationToken cancellationToken)
         {
             foreach (var baseUrl in _apiSettings.Urls)
@@ -31,7 +28,7 @@ namespace Soltec.Orquestacion.BR
                 try
                 {
                     var client = _httpClientFactory.CreateClient();
-                    var url = $"{baseUrl}venta/DescargarOnDemandZip?sucursal=TODAS";
+                    var url = $"{baseUrl}venta/DescargarOnDemandZip";
 
                     _logger.LogInformation("Consumiendo API: {url}", url);
 
@@ -61,15 +58,13 @@ namespace Soltec.Orquestacion.BR
         }
 
 
-
-
         private async Task ProcesarZipEnMemoria(byte[] fileBytes, string baseUrl)
         {
             using var memoryStream = new MemoryStream(fileBytes);
             using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
 
-            TransmisionHistorico transmisionHistorico = null;
-            SalesDataDto salesDataDto = null;
+            ConectDB transmisionHistorico = null;
+            OnDemandDTO salesDataDto = null;
 
             string clave = ObtenerClaveDesdeZip(archive);
 
@@ -84,11 +79,11 @@ namespace Soltec.Orquestacion.BR
 
                 if (entry.Name.Equals($"{clave}_infoDB.json", StringComparison.OrdinalIgnoreCase))
                 {
-                    transmisionHistorico = JsonConvert.DeserializeObject<TransmisionHistorico>(jsonContent);
+                    transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
                 }
                 else if (entry.Name.Equals($"{clave}_data.json", StringComparison.OrdinalIgnoreCase))
                 {
-                    salesDataDto = JsonConvert.DeserializeObject<SalesDataDto>(jsonContent);
+                    salesDataDto = JsonConvert.DeserializeObject<OnDemandDTO>(jsonContent);
                 }
             }
 
@@ -100,7 +95,7 @@ namespace Soltec.Orquestacion.BR
 
             _logger.LogInformation("ZIP válido para clave {clave}. Procesando...", clave);
 
-            await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricos(transmisionHistorico, salesDataDto, clave, 0);
+            await Soltec.Orquestacion.DA.Orchestration.SincronizaOnDemand(transmisionHistorico, salesDataDto, clave, 0);
         }
 
 

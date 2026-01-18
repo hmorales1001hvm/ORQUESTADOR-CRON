@@ -1368,7 +1368,7 @@ namespace Soltec.Orquestacion.DA
 
 
 
-        public static async Task<bool> SincronizaHistoricos(TransmisionHistorico data, SalesDataDto salesDataDto, string sucursal, int id)
+        public static async Task<bool> SincronizaHistoricos(ConectDB data, SalesDataDto salesDataDto, string sucursal, int id)
         {
             string connString = $"Server={data.HostName};Database={data.DatabaseName};User Id={data.UserName};Password={data.Password};TrustServerCertificate=True;Connect Timeout=60;;Max Pool Size=300;";
 
@@ -1790,7 +1790,42 @@ namespace Soltec.Orquestacion.DA
             }
         }
 
-        public static async Task<bool> SincronizaHistoricosSIMIPET(TransmisionHistorico data, SalesDataDto salesDataDto, string sucursal, int id)
+
+
+
+        public static async Task<bool> SincronizaOnDemand(ConectDB data, OnDemandDTO salesDataDto, string sucursal, int id)
+        {
+            string connString = $"Server={data.HostName};Database={data.DatabaseName};User Id={data.UserName};Password={data.Password};TrustServerCertificate=True;Connect Timeout=60;;Max Pool Size=300;";
+
+            using var connection = new SqlConnection(connString);
+            var nombreProceso = string.Empty;
+
+            try
+            {
+                Logger.Info($"Procesando la sucursal {sucursal}");
+                
+
+
+
+                await connection.OpenAsync();
+                Logger.Info($"Iniciando SincronizaSetDeTransmisionesSQLServer - Sucursal: {sucursal}");
+
+ 
+                var dto = salesDataDto; 
+
+                connection.Dispose();
+                Logger.Info($"Sincronización completada correctamente.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Ocurrió un error: {ex.Message}");
+                return false;
+            }
+        }
+
+
+        public static async Task<bool> SincronizaHistoricosSIMIPET(ConectDB data, SalesDataDto salesDataDto, string sucursal, int id)
         {
             string connString = $"Server={data.HostName};Database={data.DatabaseName};User Id={data.UserName};Password={data.Password};TrustServerCertificate=True;Connect Timeout=60;;Max Pool Size=300;";
 
