@@ -165,6 +165,11 @@ namespace Soltec.Orquestacion.App
                     Logger.Important($"========== Históricos [{version2}] ==========");
                     await Orchestration.ProcesaHistoricos(ApiUrls);
                     break;
+                case 13:
+                    var versionSIMIPET = Assembly.GetExecutingAssembly().GetName().Version;
+                    Logger.Important($"========== Históricos [{versionSIMIPET}] ==========");
+                    await Orchestration.ProcesaHistoricosSIMIPET(ApiUrls);
+                    break;
 
                 default:
                     Logger.Info("Proceso no reconocido.");

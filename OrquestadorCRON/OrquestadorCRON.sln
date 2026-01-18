@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36623.8 d17.14
+VisualStudioVersion = 17.14.36623.8
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrquestadorCRON", "OrquestadorCRON.csproj", "{E411B6EF-3C02-4BC1-A45F-8AC87783E529}"
 EndProject
@@ -10,6 +10,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Soltec.Orquestacion.DA", "..\Soltec.Orquestacion.DA\Soltec.Orquestacion.DA.csproj", "{D06C8442-81AD-3D9B-FEB1-31E670146DAD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Soltec.Orquestacion.Entidades", "..\Soltec.Orquestacion.Entidades\Soltec.Orquestacion.Entidades.csproj", "{3AA844DD-05FC-44D1-0A48-32401B15EF26}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerServiceOnDemand", "..\WorkerServiceOnDemand\WorkerServiceOnDemand.csproj", "{7852F539-BD50-446A-AF98-7D5D3D274223}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3AA844DD-05FC-44D1-0A48-32401B15EF26}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7852F539-BD50-446A-AF98-7D5D3D274223}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7852F539-BD50-446A-AF98-7D5D3D274223}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7852F539-BD50-446A-AF98-7D5D3D274223}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7852F539-BD50-446A-AF98-7D5D3D274223}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

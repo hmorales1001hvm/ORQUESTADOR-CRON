@@ -26,6 +26,8 @@ namespace Soltec.Orquestacion.DA
 		static string conectionStringMaqueta = Settings1.Default.ConectionStringMaqueta;
 		static string conectionStringFacturacion = Settings1.Default.ConectionStringFacturacion;
 		static string conextionStringFacturaRealOrquestador = Settings1.Default.ConectionStringFacturaRealOrquestador;
+        static string conectionSIMIPET = Settings1.Default.ConectionSIMIPET;
+
         static int batchSize = 1500;
 
         List<OrquestadorServidorMySQL> serversDB = new List<OrquestadorServidorMySQL>();
@@ -1334,6 +1336,36 @@ namespace Soltec.Orquestacion.DA
             }
         }
 
+        public static async Task<List<ModelTransmisiones>> CargaHistoricosRecibidosSIMIPET()
+        {
+            try
+            {
+                using var connection = new MySqlConnection(conectionSIMIPET);
+                var parameters = new DynamicParameters();
+                parameters.Add("@pIdEmpresa", 0, DbType.Int32);
+                parameters.Add("@pIdUsuario", 0, DbType.Int32);
+                parameters.Add("@pHistorico", 2, DbType.Int32);
+                parameters.Add("@pEstatus", "RECIBIDO", DbType.String);
+
+                await connection.OpenAsync();
+                Logger.Info("Conexión abierta correctamente");
+
+                var data = await connection.QueryAsync<ModelTransmisiones>(
+                    "usp_PortalCargaTransmisionesHistoricos",
+                    parameters,
+                    commandType: CommandType.StoredProcedure,
+                    commandTimeout: 420
+                );
+
+                return data.ToList();
+            }
+            catch (Exception ex)
+            {
+                Logger.Info($"Error al abrir la conexión: {ex.Message}");
+                throw;
+            }
+        }
+
 
 
         public static async Task<bool> SincronizaHistoricos(TransmisionHistorico data, SalesDataDto salesDataDto, string sucursal, int id)
@@ -1755,6 +1787,428 @@ namespace Soltec.Orquestacion.DA
                 }
 				Logger.Error($"Ocurrió un error: {ex.Message}");
 				return false;
+            }
+        }
+
+        public static async Task<bool> SincronizaHistoricosSIMIPET(TransmisionHistorico data, SalesDataDto salesDataDto, string sucursal, int id)
+        {
+            string connString = $"Server={data.HostName};Database={data.DatabaseName};User Id={data.UserName};Password={data.Password};TrustServerCertificate=True;Connect Timeout=60;;Max Pool Size=300;";
+
+            using var connection = new SqlConnection(connString);
+            var nombreProceso = string.Empty;
+
+            try
+            {
+                Logger.Info($"Procesando la sucursal {sucursal}");
+                using (var conn = new MySqlConnection(conectionSIMIPET))
+                {
+                    await conn.OpenAsync();
+                    string query = @"UPDATE soltec2_Historicos SET Estatus = 'PROCESANDO...' WHERE ClaveSimi = @ClaveSimi AND IdHistorico=@IdHistorico";
+
+                    using (var cmd = new MySqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@ClaveSimi", sucursal);
+                        cmd.Parameters.AddWithValue("@IdHistorico", id);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+
+                    await conn.CloseAsync();
+                }
+
+                await connection.OpenAsync();
+                Logger.Info($"Iniciando SincronizaSetDeTransmisionesSQLServer - Sucursal: {sucursal}");
+
+                // Deserializar DTO raíz
+                var dto = salesDataDto; //JsonSerializer.Deserialize<SalesDataDto>(dataJSON) ?? new SalesDataDto();
+
+                // 1) Ventas
+                var ventasValidas = dto.Ventas?.Where(v => v.Id_Venta != null).ToList();
+                nombreProceso = "Ventas";
+                Logger.Info($"Procesando Ventas ({ventasValidas?.Count ?? 0})...");
+                await BulkMergeAsync(connection, ventasValidas, @"
+                CREATE TABLE #TempVentas (
+                    FechaOperacion DATETIME NOT NULL,
+                    ClaveSimi CHAR(10) NOT NULL,
+                    Id_Venta INT NOT NULL,
+                    id_usuario_venta VARCHAR(50) NOT NULL,
+                    Empleado VARCHAR(100) NOT NULL,
+                    idRegistradora INT NOT NULL,
+                    idRegistradoraVenta INT NOT NULL,
+                    idRegistradoraCobro INT NOT NULL,
+                    TipoOperacion INT NOT NULL,
+                    Procesado SMALLINT NOT NULL,
+                    FechaHoraVenta DATETIME NOT NULL,
+                    TipoVenta INT NOT NULL
+                );",
+                    "#TempVentas",
+                    @"
+                MERGE INTO Ventas AS target
+                USING #TempVentas AS source
+                ON target.FechaOperacion = source.FechaOperacion
+                   AND target.ClaveSimi = source.ClaveSimi
+                   AND target.Id_Venta = source.Id_Venta
+                WHEN NOT MATCHED THEN
+                    INSERT (FechaOperacion, ClaveSimi, Id_Venta, id_usuario_venta, Empleado,
+                            idRegistradora, idRegistradoraVenta, idRegistradoraCobro, TipoOperacion,
+                            Procesado, FechaHoraVenta, TipoVenta)
+                    VALUES (source.FechaOperacion, source.ClaveSimi, source.Id_Venta, source.id_usuario_venta, source.Empleado,
+                            source.idRegistradora, source.idRegistradoraVenta, source.idRegistradoraCobro, source.TipoOperacion,
+                            source.Procesado, source.FechaHoraVenta, source.TipoVenta);");
+
+                Logger.Info($"Ventas procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+
+                // 2) VentasProductos
+                //var ventasProductos = dto.VentasProductos?.Where(v => v.Id_Venta != null).ToList();
+                var ventasProductos = dto.VentasProductos?.Where(v => v.Id_Venta != null && !string.IsNullOrEmpty(v.Codigo)).ToList();
+                Logger.Info($"Procesando VentasProductos ({ventasProductos?.Count ?? 0})...");
+                nombreProceso = "VentasProductos";
+                await BulkMergeAsync(connection, ventasProductos, @"
+                CREATE TABLE #TempVentasProductos (
+                    FechaOperacion DATETIME NOT NULL,
+                    ClaveSimi CHAR(10) NOT NULL,
+                    Id_Venta INT NOT NULL,
+                    Codigo CHAR(10) NOT NULL,
+                    Id_ProductoSAT VARCHAR(20) NOT NULL,
+                    TipoOperacion INT NOT NULL,
+                    Producto VARCHAR(255) NOT NULL,
+                    NoPonderado BIT NOT NULL,
+                    Premio BIT NOT NULL,
+                    Combo BIT NOT NULL,
+                    Inventario BIT NOT NULL,
+                    Cantidad DECIMAL(10,2) NOT NULL,
+                    Precio DECIMAL(10,2) NOT NULL,
+                    IVA DECIMAL(10,2) NOT NULL,
+                    Descuento DECIMAL(10,2) NOT NULL,
+                    DescuentoPorciento DECIMAL(10,2) NOT NULL,
+                    IVA_Porciento DECIMAL(10,2) NOT NULL,
+                    IVA_Importe DECIMAL(10,2) NOT NULL,
+                    Presentacion VARCHAR(50) NULL,
+                    Nivel1 VARCHAR(50) NOT NULL,
+                    Nivel2 VARCHAR(50) NOT NULL,
+                    Nivel3 VARCHAR(50) NOT NULL
+                );",
+                    "#TempVentasProductos",
+                    @"
+                MERGE INTO VentasProductos AS target
+				USING #TempVentasProductos AS source
+				ON target.FechaOperacion = source.FechaOperacion
+				   AND target.ClaveSimi = source.ClaveSimi
+				   AND target.Id_Venta = source.Id_Venta
+				   AND target.Codigo = source.Codigo
+
+				WHEN MATCHED THEN
+					UPDATE SET
+						target.Id_ProductoSAT     = source.Id_ProductoSAT,
+						target.TipoOperacion      = source.TipoOperacion,
+						target.Producto           = source.Producto,
+						target.NoPonderado        = source.NoPonderado,
+						target.Premio             = source.Premio,
+						target.Combo              = source.Combo,
+						target.Inventario         = source.Inventario,
+						target.Cantidad           = source.Cantidad,
+						target.Precio             = source.Precio,
+						target.IVA                = source.IVA,
+						target.Descuento          = source.Descuento,
+						target.DescuentoPorciento = source.DescuentoPorciento,
+						target.IVA_Porciento      = source.IVA_Porciento,
+						target.IVA_Importe        = source.IVA_Importe,
+						target.Presentacion       = source.Presentacion,
+						target.Nivel1             = source.Nivel1,
+						target.Nivel2             = source.Nivel2,
+						target.Nivel3             = source.Nivel3
+
+				WHEN NOT MATCHED THEN
+					INSERT (
+						FechaOperacion, ClaveSimi, Id_Venta, Codigo,
+						Id_ProductoSAT, TipoOperacion, Producto,
+						NoPonderado, Premio, Combo, Inventario,
+						Cantidad, Precio, IVA, Descuento,
+						DescuentoPorciento, IVA_Porciento, IVA_Importe,
+						Presentacion, Nivel1, Nivel2, Nivel3
+					)
+					VALUES (
+						source.FechaOperacion, source.ClaveSimi, source.Id_Venta, source.Codigo,
+						source.Id_ProductoSAT, source.TipoOperacion, source.Producto,
+						source.NoPonderado, source.Premio, source.Combo, source.Inventario,
+						source.Cantidad, source.Precio, source.IVA, source.Descuento,
+						source.DescuentoPorciento, source.IVA_Porciento, source.IVA_Importe,
+						source.Presentacion, source.Nivel1, source.Nivel2, source.Nivel3
+					);
+				");
+
+                Logger.Info($"VentasProductos procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+
+                // 3) VentasImpuestos
+                var ventasImpuestos = dto.VentasImpuestos?.Where(v => v.Id_Venta != null).ToList();
+                nombreProceso = "VentasImpuestos";
+
+                Logger.Info($"Procesando VentasImpuestos ({ventasImpuestos?.Count ?? 0})...");
+                await BulkMergeAsync(connection, ventasImpuestos, @"
+                CREATE TABLE #TempVentasImpuestos (
+                    FechaOperacion DATETIME NOT NULL,
+                    ClaveSimi CHAR(10) NOT NULL,
+                    Id_Venta INT NOT NULL,
+                    Impuesto VARCHAR(10) NOT NULL,
+                    TipoFactor VARCHAR(10) NOT NULL,
+                    TasaImpuesto NUMERIC(12,2) NOT NULL,
+                    ClaveSATImpuesto VARCHAR(10) NOT NULL,
+                    BaseImpuesto NUMERIC(12,2) NOT NULL,
+                    ImporteImpuesto NUMERIC(12,2) NOT NULL,
+                    TipoOperacion INT NOT NULL
+                );",
+                    "#TempVentasImpuestos",
+                    @"
+                MERGE INTO VentasImpuestos AS target
+                USING #TempVentasImpuestos AS source
+                ON target.FechaOperacion = source.FechaOperacion
+                   AND target.ClaveSimi = source.ClaveSimi
+                   AND target.Id_Venta = source.Id_Venta
+                   AND target.Impuesto = source.Impuesto
+                   AND target.TipoFactor = source.TipoFactor
+                   AND target.TasaImpuesto = source.TasaImpuesto
+                WHEN NOT MATCHED THEN
+                    INSERT (FechaOperacion, ClaveSimi, Id_Venta, Impuesto, TipoFactor, TasaImpuesto, ClaveSATImpuesto, BaseImpuesto, ImporteImpuesto, TipoOperacion)
+                    VALUES (source.FechaOperacion, source.ClaveSimi, source.Id_Venta, source.Impuesto, source.TipoFactor, source.TasaImpuesto, source.ClaveSATImpuesto, source.BaseImpuesto, source.ImporteImpuesto, source.TipoOperacion);");
+
+                Logger.Info($"VentasImpuestos procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+
+                // 4) VentasImpuestosDetalle
+                var ventasImpuestosDetalle = dto.VentasImpuestosDetalle?.Where(v => v.Id_Venta != null).ToList();
+                Logger.Info($"Procesando VentasImpuestosDetalle ({ventasImpuestosDetalle?.Count ?? 0})...");
+                nombreProceso = "VentasImpuestosDetalle";
+
+                await BulkMergeAsync(connection, ventasImpuestosDetalle, @"
+                CREATE TABLE #TempVentasImpuestosDetalle (
+                    ClaveSimi CHAR(10) NOT NULL,
+                    FechaOperacion DATETIME NOT NULL,
+                    Id_Venta INT NOT NULL,
+                    Id_Producto VARCHAR(10) NOT NULL,
+                    Impuesto VARCHAR(10) NOT NULL,
+                    ClaveImpuesto VARCHAR(10) NOT NULL,
+                    TasaImpuesto NUMERIC(12,2) NOT NULL,
+                    TipoFactor VARCHAR(10) NOT NULL,
+                    Base NUMERIC(12,2) NOT NULL,
+                    ImporteIVA NUMERIC(12,2) NOT NULL,
+                    ImporteVenta NUMERIC(12,2) NOT NULL,
+                    TipoOperacion INT NOT NULL
+                );",
+                    "#TempVentasImpuestosDetalle",
+                    @"
+                MERGE INTO VentasImpuestosDetalle AS target
+                USING #TempVentasImpuestosDetalle AS source
+                ON target.FechaOperacion = source.FechaOperacion
+                   AND target.ClaveSimi = source.ClaveSimi
+                   AND target.Id_Venta = source.Id_Venta
+                   AND target.Id_Producto = source.Id_Producto
+                   AND target.Impuesto = source.Impuesto
+                WHEN NOT MATCHED THEN
+                    INSERT (ClaveSimi, FechaOperacion, Id_Venta, Id_Producto, Impuesto, ClaveImpuesto, TasaImpuesto, TipoFactor, Base, ImporteIVA, ImporteVenta, TipoOperacion)
+                    VALUES (source.ClaveSimi, source.FechaOperacion, source.Id_Venta, source.Id_Producto, source.Impuesto, source.ClaveImpuesto, source.TasaImpuesto, source.TipoFactor, source.Base, source.ImporteIVA, source.ImporteVenta, source.TipoOperacion);");
+
+                Logger.Info($"VentasImpuestosDetalle procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+
+                // 5) VentasDesgloceTotales
+                var ventasDesgloceTotales = dto.VentasDesgloceTotales?.Where(v => v.Id_Venta != null).ToList();
+                Logger.Info($"Procesando VentasDesgloseTotales ({ventasDesgloceTotales?.Count ?? 0})...");
+                nombreProceso = "VentasDesgloseTotales";
+                await BulkMergeAsync(connection, ventasDesgloceTotales, @"
+                CREATE TABLE #VentasDesgloseTotales (
+                    ClaveSimi CHAR(10) NOT NULL,
+                    FechaOperacion DATETIME NOT NULL,
+                    Id_Venta INT NOT NULL,
+                    PrecioSinIVA NUMERIC(12,2) NOT NULL,
+                    Importe NUMERIC(12,2) NOT NULL,
+                    Descuento NUMERIC(12,2) NOT NULL,
+                    Impuestos NUMERIC(12,2) NOT NULL,
+                    Total NUMERIC(12,2) NOT NULL,
+                    TipoOperacion INT NOT NULL
+                );",
+                    "#VentasDesgloseTotales",
+                    @"
+                MERGE INTO VentasDesgloseTotales AS target
+                USING #VentasDesgloseTotales AS source
+                ON target.FechaOperacion = source.FechaOperacion
+                   AND target.ClaveSimi = source.ClaveSimi
+                   AND target.Id_Venta = source.Id_Venta
+                WHEN NOT MATCHED THEN
+                    INSERT (ClaveSimi, FechaOperacion, Id_Venta, PrecioSinIVA, Importe, Descuento, Impuestos, Total, TipoOperacion)
+                    VALUES (source.ClaveSimi, source.FechaOperacion, source.Id_Venta, source.PrecioSinIVA, source.Importe, source.Descuento, source.Impuestos, source.Total, source.TipoOperacion);");
+
+                Logger.Info($"VentasDesgloseTotales procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+
+                // 6) VentasImportesProductos
+                var ventasImportesProductos = dto.VentasImportesProductos?.Where(v => v.Id_Venta != null).ToList();
+                Logger.Info($"Procesando VentasImportesProductos ({ventasImportesProductos?.Count ?? 0})...");
+                nombreProceso = "VentasImportesProductos";
+
+                await BulkMergeAsync(connection, ventasImportesProductos, @"
+                CREATE TABLE #TempVentasImportesProductos (
+                    FechaOperacion DATETIME NOT NULL,
+                    ClaveSimi CHAR(10) NOT NULL,
+                    Id_Venta INT NOT NULL,
+                    Id_Producto VARCHAR(10) NOT NULL,
+                    Precio NUMERIC(12,2) NOT NULL,
+                    PrecioUnitarioNeto NUMERIC(18,4) NOT NULL,
+                    Cantidad INT NOT NULL,
+                    SubtotalNeto NUMERIC(18,4) NOT NULL,
+                    SubtotalConImpuestos NUMERIC(18,4) NOT NULL,
+                    DescuentoNeto NUMERIC(18,4) NOT NULL,
+                    DescuentoConImpuestos NUMERIC(18,4) NOT NULL,
+                    ImporteNeto NUMERIC(12,2) NOT NULL,
+                    ImporteConImpuestos NUMERIC(12,2) NOT NULL,
+                    ImpuestoCalculado NUMERIC(18,4) NOT NULL,
+                    Total NUMERIC(12,2) NOT NULL,
+                    TipoOperacion INT NOT NULL
+                );",
+                    "#TempVentasImportesProductos",
+                    @"
+                MERGE INTO VentasImportesProductos AS target
+                USING #TempVentasImportesProductos AS source
+                ON target.FechaOperacion = source.FechaOperacion
+                   AND target.ClaveSimi = source.ClaveSimi
+                   AND target.Id_Venta = source.Id_Venta
+                   AND target.Id_Producto = source.Id_Producto
+                WHEN NOT MATCHED THEN
+                    INSERT (FechaOperacion, ClaveSimi, Id_Venta, Id_Producto, Precio, PrecioUnitarioNeto, Cantidad,
+                            SubtotalNeto, SubtotalConImpuestos, DescuentoNeto, DescuentoConImpuestos, ImporteNeto, ImporteConImpuestos,
+                            ImpuestoCalculado, Total, TipoOperacion)
+                    VALUES (source.FechaOperacion, source.ClaveSimi, source.Id_Venta, source.Id_Producto, source.Precio, source.PrecioUnitarioNeto, source.Cantidad,
+                            source.SubtotalNeto, source.SubtotalConImpuestos, source.DescuentoNeto, source.DescuentoConImpuestos, source.ImporteNeto, source.ImporteConImpuestos,
+                            source.ImpuestoCalculado, source.Total, source.TipoOperacion);");
+
+                Logger.Info($"VentasImportesProductos procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+
+                // 7) VentasVendedorCuotas
+                Logger.Info($"Procesando VentasVendedorCuotas ({dto.VentasVendedorCuotas?.Count ?? 0})...");
+                nombreProceso = "VentasVendedorCuotas";
+
+                var ventasVendedorCuotasConSucursal = dto.VentasVendedorCuotas
+                    .Select(v => new VentasVendedorCuotasDto
+                    {
+                        ClaveSimi = sucursal,
+                        Fecha = v.Fecha,
+                        IdVendedor = v.IdVendedor,
+                        Nombre = v.Nombre,
+                        ImporteVenta = v.ImporteVenta,
+                        Transaccionesventa = v.Transaccionesventa,
+                        PorcVenta = v.PorcVenta,
+                        ImporteNaturistas = v.ImporteNaturistas,
+                        PorcNaturistas = v.PorcNaturistas,
+                        ImporteNocturno = v.ImporteNocturno,
+                        MontoDescuento = v.MontoDescuento,
+                        Menudeos = v.Menudeos,
+                        MontoIva = v.MontoIva
+                    }).ToList();
+
+                await BulkMergeAsync(connection, ventasVendedorCuotasConSucursal, @"
+                                    CREATE TABLE #TempVentasVendedorCuotas (
+                                        ClaveSimi VARCHAR(6) NOT NULL,
+                                        Fecha DATETIME NOT NULL,
+                                        IdVendedor VARCHAR(10) NOT NULL,
+                                        Nombre VARCHAR(200) NOT NULL,
+                                        ImporteVenta DECIMAL(12,2) NOT NULL,
+                                        Transaccionesventa INT NOT NULL,
+                                        PorcVenta DECIMAL(12,2) NOT NULL,
+                                        ImporteNaturistas DECIMAL(12,2) NOT NULL,
+                                        PorcNaturistas DECIMAL(12,2) NOT NULL,
+                                        ImporteNocturno DECIMAL(12,2) NOT NULL,
+                                        MontoDescuento DECIMAL(12,2) NOT NULL,
+                                        Menudeos DECIMAL(12,2) NOT NULL,
+                                        MontoIva DECIMAL(12,2) NOT NULL
+                                    );",
+                                                    "#TempVentasVendedorCuotas",
+                                                    @"
+                                    MERGE INTO VentasVendedorCuotas AS target
+                                    USING #TempVentasVendedorCuotas AS source
+                                    ON target.ClaveSimi = source.ClaveSimi
+                                       AND CONVERT(VARCHAR,target.Fecha,112) = CONVERT(VARCHAR,source.Fecha,112)
+                                       AND target.IdVendedor = source.IdVendedor
+
+                                    WHEN MATCHED
+                                    THEN UPDATE SET 
+                                            target.Nombre = source.Nombre,
+                                            target.ImporteVenta = source.ImporteVenta,
+                                            target.Transaccionesventa = source.Transaccionesventa,
+                                            target.PorcVenta = source.PorcVenta,
+                                            target.ImporteNaturistas = source.ImporteNaturistas,
+                                            target.PorcNaturistas = source.PorcNaturistas,
+                                            target.ImporteNocturno = source.ImporteNocturno,
+                                            target.MontoDescuento = source.MontoDescuento,
+                                            target.Menudeos = source.Menudeos,
+                                            target.MontoIva = source.MontoIva
+
+                                    WHEN NOT MATCHED THEN
+                                        INSERT (
+                                            ClaveSimi, Fecha, IdVendedor, Nombre,
+                                            ImporteVenta, Transaccionesventa, PorcVenta,
+                                            ImporteNaturistas, PorcNaturistas, ImporteNocturno,
+                                            MontoDescuento, Menudeos, MontoIva
+                                        )
+                                        VALUES (
+                                            source.ClaveSimi, source.Fecha, source.IdVendedor, source.Nombre,
+                                            source.ImporteVenta, source.Transaccionesventa, source.PorcVenta,
+                                            source.ImporteNaturistas, source.PorcNaturistas, source.ImporteNocturno,
+                                            source.MontoDescuento, source.Menudeos, source.MontoIva
+                                        );
+                                    ");
+
+                Logger.Info($"VentasVendedorCuotas procesadas.");
+                //GC.Collect();
+                //GC.WaitForPendingFinalizers();
+                connection.Dispose();
+
+
+                using (var conn = new MySqlConnection(conectionSIMIPET))
+                {
+                    await conn.OpenAsync();
+                    string query = @"UPDATE soltec2_Historicos SET Estatus = 'PROCESADO', Activo = 0, FechaProcesado=SYSDATE() WHERE ClaveSimi = @ClaveSimi AND IdHistorico=@IdHistorico";
+
+                    using (var cmd = new MySqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@ClaveSimi", sucursal);
+                        cmd.Parameters.AddWithValue("@IdHistorico", id);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+
+                    await conn.CloseAsync();
+                }
+
+                Logger.Info($"Sincronización completada correctamente.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                using (var conn = new MySqlConnection(conectionSIMIPET))
+                {
+                    await conn.OpenAsync();
+                    string query = @"UPDATE soltec2_Historicos SET Estatus = 'RECIBIDO' WHERE ClaveSimi = @ClaveSimi AND IdHistorico=@IdHistorico";
+
+                    using (var cmd = new MySqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@ClaveSimi", sucursal);
+                        cmd.Parameters.AddWithValue("@IdHistorico", id);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+
+                    await conn.CloseAsync();
+                }
+                Logger.Error($"Ocurrió un error: {ex.Message}");
+                return false;
             }
         }
 

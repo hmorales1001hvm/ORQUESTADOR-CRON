@@ -1182,6 +1182,85 @@ namespace Soltec.Orquestacion.BR
             return true;
         }
 
+        public static async Task<bool> ProcesaHistoricosSIMIPET(string[] urls)
+        {
+            var resultado = (await Soltec.Orquestacion.DA.Orchestration.CargaHistoricosRecibidosSIMIPET());
+            foreach (var item in resultado)
+            {
+                if (string.IsNullOrEmpty(item.Clave))
+                    Logger.Error("Sucursal no valida");
+
+                //var urls = _configuration.GetSection("ApiSettings:Urls").Get<string[]>();
+
+                if (urls == null || urls.Length == 0)
+                    Logger.Error("No hay URLs de API configuradas.");
+
+                byte[] fileBytes = null;
+
+                // Intentar descargar desde la primera URL disponible
+                foreach (var url in urls)
+                {
+                    try
+                    {
+                        //var client = _httpClientFactory.CreateClient();
+                        using var client = new HttpClient();
+                        client.BaseAddress = new Uri(url.EndsWith("/") ? url : url + "/");
+
+                        var endpoint = new Uri(client.BaseAddress, $"venta/DescargarScriptZip?sucursal={item.Clave}");
+                        var response = await client.GetAsync(endpoint);
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            fileBytes = await response.Content.ReadAsByteArrayAsync();
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+                }
+
+                if (fileBytes == null)
+                    Logger.Error("No se pudo descargar el archivo desde ninguna URL activa.");
+
+                // --- Leer ZIP ---
+                using var memoryStream = new MemoryStream(fileBytes);
+                using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
+
+                TransmisionHistorico transmisionHistorico = null;
+                SalesDataDto salesDataDto = null;
+
+                foreach (var entry in archive.Entries)
+                {
+                    if (!entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    using var entryStream = entry.Open();
+                    using var reader = new StreamReader(entryStream);
+                    string jsonContent = await reader.ReadToEndAsync();
+
+                    if (entry.Name == $"{item.Clave}_infoDB.json")
+                    {
+                        transmisionHistorico = JsonConvert.DeserializeObject<TransmisionHistorico>(jsonContent);
+                    }
+                    else if (entry.Name == $"{item.Clave}_data.json")
+                    {
+                        salesDataDto = JsonConvert.DeserializeObject<SalesDataDto>(jsonContent);
+                    }
+                }
+
+                if (transmisionHistorico == null || salesDataDto == null)
+                    Logger.Error("El ZIP no contiene los archivos JSON esperados.");
+
+                // Procesar ambos archivos juntos
+                var result = await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricosSIMIPET(transmisionHistorico, salesDataDto, item.Clave, item.Id);
+
+            }
+
+            return true;
+        }
+
 
         public static async Task<bool> ProcesaSQS(string accessKeySQS,
                                                   string secretKeySQS,
@@ -1322,6 +1401,84 @@ namespace Soltec.Orquestacion.BR
             return resultado;
         }
 
+
+        //public static async Task<bool> ProcesaOnDemand(string[] urls)
+        //{
+        //    var resultado = (await Soltec.Orquestacion.DA.Orchestration.CargaHistoricosRecibidos());
+        //    foreach (var item in resultado)
+        //    {
+        //        if (string.IsNullOrEmpty(item.Clave))
+        //            Logger.Error("Sucursal no valida");
+
+        //        if (urls == null || urls.Length == 0)
+        //            Logger.Error("No hay URLs de API configuradas.");
+
+        //        byte[] fileBytes = null;
+
+        //        // Intentar descargar desde la primera URL disponible
+        //        foreach (var url in urls)
+        //        {
+        //            try
+        //            {
+        //                //var client = _httpClientFactory.CreateClient();
+        //                using var client = new HttpClient();
+        //                client.BaseAddress = new Uri(url.EndsWith("/") ? url : url + "/");
+
+        //                var endpoint = new Uri(client.BaseAddress, $"venta/DescargarOnDemandZip?sucursal={item.Clave}");
+        //                var response = await client.GetAsync(endpoint);
+
+        //                if (response.IsSuccessStatusCode)
+        //                {
+        //                    fileBytes = await response.Content.ReadAsByteArrayAsync();
+        //                    break;
+        //                }
+        //            }
+        //            catch
+        //            {
+        //                continue;
+        //            }
+        //        }
+
+        //        if (fileBytes == null)
+        //            Logger.Error("No se pudo descargar el archivo desde ninguna URL activa.");
+
+        //        // --- Leer ZIP ---
+        //        using var memoryStream = new MemoryStream(fileBytes);
+        //        using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
+
+        //        TransmisionHistorico transmisionHistorico = null;
+        //        SalesDataDto salesDataDto = null;
+
+        //        foreach (var entry in archive.Entries)
+        //        {
+        //            if (!entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        //                continue;
+
+        //            using var entryStream = entry.Open();
+        //            using var reader = new StreamReader(entryStream);
+        //            string jsonContent = await reader.ReadToEndAsync();
+
+        //            if (entry.Name == $"{item.Clave}_infoDB.json")
+        //            {
+        //                transmisionHistorico = JsonConvert.DeserializeObject<TransmisionHistorico>(jsonContent);
+        //            }
+        //            else if (entry.Name == $"{item.Clave}_data.json")
+        //            {
+        //                salesDataDto = JsonConvert.DeserializeObject<SalesDataDto>(jsonContent);
+        //            }
+        //        }
+
+        //        if (transmisionHistorico == null || salesDataDto == null)
+        //            Logger.Error("El ZIP no contiene los archivos JSON esperados.");
+
+        //        // Procesar ambos archivos juntos
+        //        var result = await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricos(transmisionHistorico, salesDataDto, item.Clave, item.Id);
+
+        //    }
+
+        //    return true;
+        //}
+       
     }
 }
 
