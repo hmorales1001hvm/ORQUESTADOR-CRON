@@ -431,55 +431,65 @@ namespace Soltec.Orquestacion.BR
                 var comprobante = xml.Element(cfdi + "Comprobante");
                 var folio = comprobante?.Attribute("Folio")?.Value;
                 var fecha = comprobante?.Attribute("Fecha")?.Value;
+                var tipoDeComprobante = comprobante?.Attribute("TipoDeComprobante")?.Value;
+                
                 var _conceptos = xml.Descendants(cfdi + "Concepto");
                 var complemento = comprobante?.Element(cfdi + "Complemento");
                 var timbre = complemento?.Element(tfd + "TimbreFiscalDigital");
                 var emisor = xml.Root.Element(cfdi + "Emisor");
                 var uuid = string.Empty;
-
-                if (emisor != null)
+                if (!string.IsNullOrEmpty(tipoDeComprobante))
                 {
-                    string rfc = emisor.Attribute("Rfc")?.Value;
+                    if (tipoDeComprobante == "I")
                     {
-                        if (!string.IsNullOrEmpty(rfc) && rfc.ToUpper() == "FSI970908ML5")
+                        if (emisor != null)
                         {
-                            if (timbre != null)
-                                uuid = timbre.Attribute("UUID")?.Value;
-
-                            foreach (var concepto in _conceptos)
+                            string rfc = emisor.Attribute("Rfc")?.Value;
                             {
-                                Logger.Info($"Se va a subir la factura: {folio} - {Convert.ToDateTime(fecha)}");
-                                var cantidad = concepto.Attribute("Cantidad")?.Value;
-                                var valorUnitario = concepto.Attribute("ValorUnitario")?.Value;
-                                var importe = concepto.Attribute("Importe")?.Value;
-                                var descuento = concepto.Attribute("Descuento")?.Value;
-                                conceptos.Add(new Conceptos()
+                                if (!string.IsNullOrEmpty(rfc) && rfc.ToUpper() == "FSI970908ML5")
                                 {
-                                    Folio = folio,
-                                    Fecha = Convert.ToDateTime(fecha),
-                                    ValorUnitario = string.IsNullOrEmpty(valorUnitario) ? 0 : Convert.ToDecimal(valorUnitario),
-                                    ClaveProdServ = concepto.Attribute("ClaveProdServ")?.Value,
-                                    NoIdentificacion = concepto.Attribute("NoIdentificacion")?.Value,
-                                    Cantidad = string.IsNullOrEmpty(cantidad) ? 0 : Convert.ToDecimal(cantidad),
-                                    ClaveUnidad = concepto.Attribute("ClaveUnidad")?.Value,
-                                    Unidad = concepto.Attribute("Unidad")?.Value,
-                                    Descripcion = concepto.Attribute("Descripcion")?.Value,
-                                    Importe = string.IsNullOrEmpty(importe) ? 0 : Convert.ToDecimal(importe),
-                                    Descuento = string.IsNullOrEmpty(descuento) ? 0 : Convert.ToDecimal(descuento),
-                                    UUID = uuid,
-                                    FileName = fileName
-                                });
+                                    if (timbre != null)
+                                        uuid = timbre.Attribute("UUID")?.Value;
+
+                                    foreach (var concepto in _conceptos)
+                                    {
+                                        Logger.Info($"Se va a subir la factura: {folio} - {Convert.ToDateTime(fecha)}");
+                                        var cantidad = concepto.Attribute("Cantidad")?.Value;
+                                        var valorUnitario = concepto.Attribute("ValorUnitario")?.Value;
+                                        var importe = concepto.Attribute("Importe")?.Value;
+                                        var descuento = concepto.Attribute("Descuento")?.Value;
+                                        conceptos.Add(new Conceptos()
+                                        {
+                                            Folio = folio,
+                                            Fecha = Convert.ToDateTime(fecha),
+                                            ValorUnitario = string.IsNullOrEmpty(valorUnitario) ? 0 : Convert.ToDecimal(valorUnitario),
+                                            ClaveProdServ = concepto.Attribute("ClaveProdServ")?.Value,
+                                            NoIdentificacion = concepto.Attribute("NoIdentificacion")?.Value,
+                                            Cantidad = string.IsNullOrEmpty(cantidad) ? 0 : Convert.ToDecimal(cantidad),
+                                            ClaveUnidad = concepto.Attribute("ClaveUnidad")?.Value,
+                                            Unidad = concepto.Attribute("Unidad")?.Value,
+                                            Descripcion = concepto.Attribute("Descripcion")?.Value,
+                                            Importe = string.IsNullOrEmpty(importe) ? 0 : Convert.ToDecimal(importe),
+                                            Descuento = string.IsNullOrEmpty(descuento) ? 0 : Convert.ToDecimal(descuento),
+                                            UUID = uuid,
+                                            FileName = fileName
+                                        });
+                                    }
+                                }
+                                else
+                                {
+                                    return false;
+                                }
                             }
+                            return true;
                         }
-                        else
-                        {
-                            return false;
-                        }
+                        return true;
                     }
-                    return true;
+                    else
+                        return false;
                 }
-                else
-                    return false;
+                else return false;
+
             }
             catch (Exception ex)
             {

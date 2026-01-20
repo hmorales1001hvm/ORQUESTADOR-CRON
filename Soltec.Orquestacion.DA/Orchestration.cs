@@ -1791,38 +1791,227 @@ namespace Soltec.Orquestacion.DA
         }
 
 
-
-
-        public static async Task<bool> SincronizaOnDemand(ConectDB data, OnDemandDTO salesDataDto, string sucursal, int id)
+        #region ON DEMAND
+        public static async Task<bool> SincronizaOnDemand(ConectDB data, OnDemandDTO dto, string sucursal)
         {
-            string connString = $"Server={data.HostName};Database={data.DatabaseName};User Id={data.UserName};Password={data.Password};TrustServerCertificate=True;Connect Timeout=60;;Max Pool Size=300;";
-
+            string connString = $"Server={data.HostName};Database={data.DatabaseName};User Id={data.UserName};Password={data.Password};TrustServerCertificate=True;Connect Timeout=60;Max Pool Size=300;";
             using var connection = new SqlConnection(connString);
-            var nombreProceso = string.Empty;
 
             try
             {
-                Logger.Info($"Procesando la sucursal {sucursal}");
-                
-
-
-
+                Logger.Info($"Iniciando OnDemand | Sucursal {sucursal}");
                 await connection.OpenAsync();
-                Logger.Info($"Iniciando SincronizaSetDeTransmisionesSQLServer - Sucursal: {sucursal}");
 
- 
-                var dto = salesDataDto; 
+                await SincronizarProducto(connection, dto.producto);
+                await SincronizarProductoRecomendado(connection, dto.productoRecomendado);
+                await SincronizarProductoCombo(connection, dto.productoCombo);
 
-                connection.Dispose();
-                Logger.Info($"Sincronización completada correctamente.");
+                Logger.Info("OnDemand finalizado correctamente");
                 return true;
             }
             catch (Exception ex)
             {
-                Logger.Error($"Ocurrió un error: {ex.Message}");
+                Logger.Error($"Error en SincronizaOnDemand: {ex.Message}");
                 return false;
             }
         }
+
+        private static async Task SincronizarProducto(SqlConnection connection, List<OnDemandDTO.Producto> productos)
+        {
+            if (productos == null || productos.Count == 0)
+                return;
+
+            Logger.Info($"Producto ({productos.Count})");
+
+            await BulkMergeAsync(
+                connection,
+                productos,
+                        @"
+                        CREATE TABLE #TempProducto(
+                            Id_Producto VARCHAR(10),
+                            Id_Nivel1 CHAR(1),
+                            Id_Nivel2 CHAR(2),
+                            Id_Nivel3 CHAR(4),
+                            Id_Articulo INT,
+                            Id_Presentacion SMALLINT,
+                            Nombre VARCHAR(80),
+                            MarcaEconomica VARCHAR(30),
+                            PrecioCompra MONEY,
+                            Precio MONEY,
+                            UltimoCosto MONEY,
+                            IVA SMALLMONEY,
+                            Inventario BIT,
+                            InventarioDiario BIT,
+                            Combo BIT,
+                            OTC BIT,
+                            Venta BIT,
+                            Servicio BIT,
+                            Premio BIT,
+                            EstructuraNegocio INT,
+                            AplicaCaducidad BIT,
+                            AplicaDescuento BIT,
+                            ProductoBasico BIT,
+                            AsignaPuntos SMALLINT,
+                            PrecioPuntos SMALLINT,
+                            ProductoGondola BIT,
+                            EstatusRegistro BIT,
+                            Controlado BIT,
+                            Descripcion_Corta VARCHAR(20),
+                            FueradeCatalogo BIT,
+                            NoPonderado BIT,
+                            CantidadPresentacion INT,
+                            FechaInclusion DATETIME,
+                            Id_ProductoSAT VARCHAR(8),
+                            RequiereLote BIT,
+                            IEPS SMALLMONEY
+                        );",
+
+                                "#TempProducto",
+
+                                @"
+                        MERGE Producto AS T
+                        USING #TempProducto AS S
+                        ON T.Id_Producto = S.Id_Producto
+
+                        WHEN MATCHED THEN UPDATE SET
+                            T.Nombre = S.Nombre,
+                            T.Precio = S.Precio,
+                            T.IVA = S.IVA,
+                            T.Inventario = S.Inventario,
+                            T.Combo = S.Combo,
+                            T.OTC = S.OTC,
+                            T.Premio = S.Premio,
+                            T.EstatusRegistro = S.EstatusRegistro,
+                            T.FueradeCatalogo = S.FueradeCatalogo,
+                            T.NoPonderado = S.NoPonderado,
+                            T.Id_ProductoSAT = S.Id_ProductoSAT
+
+                        WHEN NOT MATCHED THEN
+                        INSERT (
+                            Id_Producto, Id_Nivel1, Id_Nivel2, Id_Nivel3,
+                            Id_Articulo, Id_Presentacion, Nombre,
+                            MarcaEconomica, PrecioCompra, Precio,
+                            UltimoCosto, IVA, Inventario, InventarioDiario,
+                            Combo, OTC, Venta, Servicio, Premio,
+                            EstructuraNegocio, AplicaCaducidad, AplicaDescuento,
+                            ProductoBasico, AsignaPuntos, PrecioPuntos,
+                            ProductoGondola, EstatusRegistro, Controlado,
+                            Descripcion_Corta, FueradeCatalogo, NoPonderado,
+                            CantidadPresentacion, FechaInclusion,
+                            Id_ProductoSAT, RequiereLote, IEPS
+                        )
+                        VALUES (
+                            S.Id_Producto, S.Id_Nivel1, S.Id_Nivel2, S.Id_Nivel3,
+                            S.Id_Articulo, S.Id_Presentacion, S.Nombre,
+                            S.MarcaEconomica, S.PrecioCompra, S.Precio,
+                            S.UltimoCosto, S.IVA, S.Inventario, S.InventarioDiario,
+                            S.Combo, S.OTC, S.Venta, S.Servicio, S.Premio,
+                            S.EstructuraNegocio, S.AplicaCaducidad, S.AplicaDescuento,
+                            S.ProductoBasico, S.AsignaPuntos, S.PrecioPuntos,
+                            S.ProductoGondola, S.EstatusRegistro, S.Controlado,
+                            S.Descripcion_Corta, S.FueradeCatalogo, S.NoPonderado,
+                            S.CantidadPresentacion, S.FechaInclusion,
+                            S.Id_ProductoSAT, S.RequiereLote, S.IEPS);");
+        }
+
+
+        private static async Task SincronizarProductoRecomendado(SqlConnection connection, List<OnDemandDTO.ProductoRecomendado> lista)
+        {
+            if (lista == null || lista.Count == 0)
+                return;
+
+            Logger.Info($"ProductoRecomendado ({lista.Count})");
+
+            await BulkMergeAsync(
+                connection,
+                lista,
+                @"
+                CREATE TABLE #TempProductoRecomendado(
+                    Id_Producto VARCHAR(10),
+                    Id_ProductoRecomendado VARCHAR(10),
+                    ArgumentoPromocional VARCHAR(100),
+                    Titulo VARCHAR(500),
+                    Prioridad TINYINT,
+                    UrlImagen VARCHAR(250),
+                    EstatusRegistro BIT,
+                    FechaCreacion DATETIME,
+                    FechaModificacion DATETIME
+                );",
+
+                        "#TempProductoRecomendado",
+
+                        @"
+                MERGE ProductoRecomendado T
+                USING #TempProductoRecomendado S
+                ON T.Id_Producto = S.Id_Producto
+                AND T.Id_ProductoRecomendado = S.Id_ProductoRecomendado
+
+                WHEN MATCHED THEN UPDATE SET
+                    T.ArgumentoPromocional = S.ArgumentoPromocional,
+                    T.Titulo = S.Titulo,
+                    T.Prioridad = S.Prioridad,
+                    T.UrlImagen = S.UrlImagen,
+                    T.EstatusRegistro = S.EstatusRegistro,
+                    T.FechaModificacion = S.FechaModificacion
+
+                WHEN NOT MATCHED THEN
+                INSERT (
+                    Id_Producto, Id_ProductoRecomendado,
+                    ArgumentoPromocional, Titulo,
+                    Prioridad, UrlImagen, EstatusRegistro,
+                    FechaCreacion, FechaModificacion
+                )
+                VALUES (
+                    S.Id_Producto, S.Id_ProductoRecomendado,
+                    S.ArgumentoPromocional, S.Titulo,
+                    S.Prioridad, S.UrlImagen, S.EstatusRegistro,
+                    S.FechaCreacion, S.FechaModificacion
+                );");
+        }
+
+
+        private static async Task SincronizarProductoCombo(SqlConnection connection, List<OnDemandDTO.Producto_Combo> combos)
+        {
+            if (combos == null || combos.Count == 0)
+                return;
+
+            Logger.Info($"Producto_Combo ({combos.Count})");
+
+            await BulkMergeAsync(
+                connection,
+                combos,
+                @"
+                CREATE TABLE #TempProductoCombo(
+                    Id_Producto_Combo VARCHAR(10),
+                    Id_Producto VARCHAR(10),
+                    Cantidad SMALLINT,
+                    Descuento MONEY
+                );",
+
+                        "#TempProductoCombo",
+
+                        @"
+                MERGE Producto_Combo T
+                USING #TempProductoCombo S
+                ON T.Id_Producto_Combo = S.Id_Producto_Combo
+                AND T.Id_Producto = S.Id_Producto
+
+                WHEN MATCHED THEN UPDATE SET
+                    T.Cantidad = S.Cantidad,
+                    T.Descuento = S.Descuento
+
+                WHEN NOT MATCHED THEN
+                INSERT (
+                    Id_Producto_Combo, Id_Producto,
+                    Cantidad, Descuento
+                )
+                VALUES (
+                    S.Id_Producto_Combo, S.Id_Producto,
+                    S.Cantidad, S.Descuento
+                );");
+        }
+        #endregion
+
 
 
         public static async Task<bool> SincronizaHistoricosSIMIPET(ConectDB data, SalesDataDto salesDataDto, string sucursal, int id)
@@ -1892,11 +2081,8 @@ namespace Soltec.Orquestacion.DA
                             source.Procesado, source.FechaHoraVenta, source.TipoVenta);");
 
                 Logger.Info($"Ventas procesadas.");
-                //GC.Collect();
-                //GC.WaitForPendingFinalizers();
 
                 // 2) VentasProductos
-                //var ventasProductos = dto.VentasProductos?.Where(v => v.Id_Venta != null).ToList();
                 var ventasProductos = dto.VentasProductos?.Where(v => v.Id_Venta != null && !string.IsNullOrEmpty(v.Codigo)).ToList();
                 Logger.Info($"Procesando VentasProductos ({ventasProductos?.Count ?? 0})...");
                 nombreProceso = "VentasProductos";
@@ -1975,8 +2161,6 @@ namespace Soltec.Orquestacion.DA
 				");
 
                 Logger.Info($"VentasProductos procesadas.");
-                //GC.Collect();
-                //GC.WaitForPendingFinalizers();
 
                 // 3) VentasImpuestos
                 var ventasImpuestos = dto.VentasImpuestos?.Where(v => v.Id_Venta != null).ToList();
@@ -2048,8 +2232,6 @@ namespace Soltec.Orquestacion.DA
                     VALUES (source.ClaveSimi, source.FechaOperacion, source.Id_Venta, source.Id_Producto, source.Impuesto, source.ClaveImpuesto, source.TasaImpuesto, source.TipoFactor, source.Base, source.ImporteIVA, source.ImporteVenta, source.TipoOperacion);");
 
                 Logger.Info($"VentasImpuestosDetalle procesadas.");
-                //GC.Collect();
-                //GC.WaitForPendingFinalizers();
 
                 // 5) VentasDesgloceTotales
                 var ventasDesgloceTotales = dto.VentasDesgloceTotales?.Where(v => v.Id_Venta != null).ToList();
@@ -2079,8 +2261,6 @@ namespace Soltec.Orquestacion.DA
                     VALUES (source.ClaveSimi, source.FechaOperacion, source.Id_Venta, source.PrecioSinIVA, source.Importe, source.Descuento, source.Impuestos, source.Total, source.TipoOperacion);");
 
                 Logger.Info($"VentasDesgloseTotales procesadas.");
-                //GC.Collect();
-                //GC.WaitForPendingFinalizers();
 
                 // 6) VentasImportesProductos
                 var ventasImportesProductos = dto.VentasImportesProductos?.Where(v => v.Id_Venta != null).ToList();
@@ -2123,8 +2303,6 @@ namespace Soltec.Orquestacion.DA
                             source.ImpuestoCalculado, source.Total, source.TipoOperacion);");
 
                 Logger.Info($"VentasImportesProductos procesadas.");
-                //GC.Collect();
-                //GC.WaitForPendingFinalizers();
 
                 // 7) VentasVendedorCuotas
                 Logger.Info($"Procesando VentasVendedorCuotas ({dto.VentasVendedorCuotas?.Count ?? 0})...");
@@ -2201,8 +2379,7 @@ namespace Soltec.Orquestacion.DA
                                     ");
 
                 Logger.Info($"VentasVendedorCuotas procesadas.");
-                //GC.Collect();
-                //GC.WaitForPendingFinalizers();
+
                 connection.Dispose();
 
 

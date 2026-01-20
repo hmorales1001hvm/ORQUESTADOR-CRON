@@ -48,7 +48,8 @@ namespace Soltec.Orquestacion.BR
                         continue;
                     }
 
-                    await ProcesarZipEnMemoria(fileBytes, baseUrl);
+                    await ProcesarZipEnMemoria(fileBytes, baseUrl, cancellationToken);
+
                 }
                 catch (Exception ex)
                 {
@@ -57,13 +58,33 @@ namespace Soltec.Orquestacion.BR
             }
         }
 
-
-        private async Task ProcesarZipEnMemoria(byte[] fileBytes, string baseUrl)
+        private async Task ProcesarZipEnMemoria(byte[] fileBytes, string baseUrl, CancellationToken cancellationToken)
         {
             using var memoryStream = new MemoryStream(fileBytes);
-            using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
+            using var outerArchive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
 
-            ConectDB transmisionHistorico = null;
+            foreach (var zipEntry in outerArchive.Entries)
+            {
+                if (!zipEntry.Name.EndsWith("_DatosOnDemand.zip", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                _logger.LogInformation("Procesando ZIP interno: {zip}", zipEntry.Name);
+
+                using var innerZipStream = zipEntry.Open();
+                using var innerMemoryStream = new MemoryStream();
+                await innerZipStream.CopyToAsync(innerMemoryStream, cancellationToken);
+
+                innerMemoryStream.Position = 0;
+
+                await ProcesarZipInterno(innerMemoryStream, baseUrl, zipEntry.Name, cancellationToken);
+            }
+        }
+
+        private async Task ProcesarZipInterno(MemoryStream zipStream,  string baseUrl,  string zipName, CancellationToken cancellationToken)
+        {
+            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+
+            ConectDB conectDB = null;
             OnDemandDTO salesDataDto = null;
 
             string clave = ObtenerClaveDesdeZip(archive);
@@ -79,7 +100,7 @@ namespace Soltec.Orquestacion.BR
 
                 if (entry.Name.Equals($"{clave}_infoDB.json", StringComparison.OrdinalIgnoreCase))
                 {
-                    transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
+                    conectDB = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
                 }
                 else if (entry.Name.Equals($"{clave}_data.json", StringComparison.OrdinalIgnoreCase))
                 {
@@ -87,26 +108,49 @@ namespace Soltec.Orquestacion.BR
                 }
             }
 
-            if (transmisionHistorico == null || salesDataDto == null)
+            if (conectDB == null || salesDataDto == null)
             {
-                _logger.LogError("El ZIP no contiene los archivos JSON esperados. Clave={clave}", clave);
+                _logger.LogError("ZIP interno inválido: {zip}", zipName);
                 return;
             }
 
-            _logger.LogInformation("ZIP válido para clave {clave}. Procesando...", clave);
+            // 🔥 PROCESO PRINCIPAL
+            await Soltec.Orquestacion.DA.Orchestration.SincronizaOnDemand(conectDB, salesDataDto, clave);
 
-            await Soltec.Orquestacion.DA.Orchestration.SincronizaOnDemand(transmisionHistorico, salesDataDto, clave, 0);
+            // 🧹 BORRAR ZIP REMOTO
+            await EliminarZipRemoto(baseUrl, zipName, cancellationToken);
+
+            _logger.LogInformation("ZIP interno procesado correctamente: {zip}", zipName);
+        }
+
+
+
+        private async Task EliminarZipRemoto(string baseUrl, string fileName,  CancellationToken cancellationToken)
+        {
+            var client = _httpClientFactory.CreateClient();
+            var url = $"{baseUrl}venta/EliminarOnDemandZip?fileName={Uri.EscapeDataString(fileName)}";
+
+            _logger.LogInformation("Solicitando eliminación del ZIP: {url}", url);
+
+            using var response = await client.DeleteAsync(url, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "No se pudo eliminar el ZIP remoto {file}. Status: {status}",
+                    fileName,
+                    response.StatusCode);
+            }
         }
 
 
         private string ObtenerClaveDesdeZip(ZipArchive archive)
         {
             var entry = archive.Entries
-                .FirstOrDefault(e => e.Name.EndsWith("_infoDB.json"));
+                .FirstOrDefault(e => e.Name.EndsWith("_infoDB.json", StringComparison.OrdinalIgnoreCase));
 
             return entry?.Name.Split('_')[0];
         }
-
 
 
     }
