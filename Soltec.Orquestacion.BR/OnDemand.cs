@@ -130,7 +130,7 @@ namespace Soltec.Orquestacion.BR
             var client = _httpClientFactory.CreateClient();
             var url = $"{baseUrl}venta/EliminarOnDemandZip?fileName={Uri.EscapeDataString(fileName)}";
 
-            _logger.LogInformation("Solicitando eliminación del ZIP: {url}", url);
+            _logger.LogInformation($"Eliminando archivo: {fileName}, solicitando eliminación del ZIP: {url}", url);
 
             using var response = await client.DeleteAsync(url, cancellationToken);
 
