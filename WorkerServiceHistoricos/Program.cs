@@ -1,6 +1,6 @@
 ﻿using Serilog;
 using Soltec.Orquestacion.BR;
-using WorkerServiceOnDemand;
+using WorkerServiceHistoricos;
 
 try
 {
@@ -11,7 +11,7 @@ try
     if (!Directory.Exists(logDir))
         Directory.CreateDirectory(logDir);
 
-    var logFilePath = Path.Combine(logDir, "WorkerServiceOnDemand-.log");
+    var logFilePath = Path.Combine(logDir, "WorkerServiceHistoricos-.log");
 
     // ------------------------
     // Configurar Serilog
@@ -28,7 +28,7 @@ try
         )
         .CreateLogger();
 
-    Log.Information("Iniciando Worker Service OnDemand...");
+    Log.Information("Iniciando Worker Service Históricos...");
 
     // ------------------------
     // Crear host
@@ -36,7 +36,7 @@ try
     var host = Host.CreateDefaultBuilder(args)
         .UseWindowsService(options =>
         {
-            options.ServiceName = "SOLTEC - Worker Service OnDemand";
+            options.ServiceName = "SOLTEC - Worker Service Históricos";
         })
         .UseSerilog()
         .ConfigureServices((context, services) =>
@@ -49,7 +49,7 @@ try
             services.AddHttpClient();
 
             // Servicios internos
-            services.AddScoped<OnDemand>();
+            services.AddScoped<Historicos>();
 
             // Worker
             services.AddHostedService<Worker>();
@@ -60,7 +60,7 @@ try
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Error crítico al iniciar el servicio OnDemand.");
+    Log.Fatal(ex, "Error crítico al iniciar el servicio Históricos.");
 }
 finally
 {

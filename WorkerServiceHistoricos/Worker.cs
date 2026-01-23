@@ -1,14 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Soltec.Orquestacion.BR;
 
-namespace WorkerServiceOnDemand
+namespace WorkerServiceHistoricos
 {
     public class Worker : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<Worker> _logger;
 
-        private static readonly SemaphoreSlim _onDemandLock = new(1, 1);
+        private static readonly SemaphoreSlim _historicosLock = new(1, 1);
 
         public Worker(
             ILogger<Worker> logger,
@@ -20,40 +20,40 @@ namespace WorkerServiceOnDemand
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Worker OnDemand iniciado.");
+            _logger.LogInformation("Worker Históricos iniciado.");
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 using var scope = _scopeFactory.CreateScope();
-                var onDemand = scope.ServiceProvider.GetRequiredService<OnDemand>();
+                var historicos = scope.ServiceProvider.GetRequiredService<Historicos>();
 
-                await EjecutarOnDemand(onDemand, stoppingToken);
+                await EjecutarHistoricos(historicos, stoppingToken);
 
                 await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
             }
         }
 
-        private async Task EjecutarOnDemand(OnDemand onDemand, CancellationToken ct)
+        private async Task EjecutarHistoricos(Historicos historicos, CancellationToken ct)
         {
-            if (!await _onDemandLock.WaitAsync(0, ct))
+            if (!await _historicosLock.WaitAsync(0, ct))
             {
-                _logger.LogWarning("OnDemand sigue en ejecución. Se omite este ciclo.");
+                _logger.LogWarning("Históricos sigue en ejecución. Se omite este ciclo.");
                 return;
             }
 
             try
             {
-                _logger.LogInformation("OnDemand iniciado.");
-                await onDemand.DescargarDatosOnDemand(ct);
+                _logger.LogInformation("Históricos iniciado.");
+                await historicos.ProcesaHistoricos(ct);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en OnDemand");
+                _logger.LogError(ex, "Error en Históricos");
             }
             finally
             {
-                _onDemandLock.Release();
-                _logger.LogInformation("OnDemand finalizado.");
+                _historicosLock.Release();
+                _logger.LogInformation("Históricos finalizado.");
             }
         }
     }

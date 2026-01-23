@@ -1805,6 +1805,7 @@ namespace Soltec.Orquestacion.DA
                 await SincronizarProducto(connection, dto.producto);
                 await SincronizarProductoRecomendado(connection, dto.productoRecomendado);
                 await SincronizarProductoCombo(connection, dto.productoCombo);
+                await SincronizarInventarios(connection, dto.inventarios, sucursal);
 
                 Logger.Info("OnDemand finalizado correctamente");
                 return true;
@@ -2010,6 +2011,78 @@ namespace Soltec.Orquestacion.DA
                     S.Cantidad, S.Descuento
                 );");
         }
+
+        private static async Task SincronizarInventarios(SqlConnection connection, List<OnDemandDTO.Inventario> inventarios, string sucursal)
+        {
+            if (inventarios == null || inventarios.Count == 0)
+            {
+                Logger.Info("Inventarios: no hay registros a procesar.");
+                return;
+            }
+
+            Logger.Info($"Procesando Inventarios ({inventarios.Count}) | Sucursal {sucursal}");
+
+            // Asegurar ClaveSimi
+            foreach (var inv in inventarios)
+            {
+                inv.ClaveSimi ??= sucursal;
+            }
+
+            await BulkMergeAsync(
+                connection,
+                inventarios,
+
+                // 🔹 Tabla temporal
+                @" CREATE TABLE #TempInventarios (
+                ClaveSimi VARCHAR(10) NOT NULL,
+                FechaOperacion DATETIME NULL,
+                Id_Producto VARCHAR(10) NOT NULL,
+                ExistenciaInicial INT NULL,
+                Entradas INT NULL,
+                Salidas INT NULL,
+                ExistenciaFinal INT NULL
+            );",
+
+                    "#TempInventarios",
+
+                    // 🔹 MERGE
+                    @"
+            MERGE INTO Inventarios AS target
+            USING #TempInventarios AS source
+            ON target.ClaveSimi = source.ClaveSimi
+               AND target.Id_Producto = source.Id_Producto
+
+            WHEN MATCHED THEN
+                UPDATE SET
+                    target.FechaOperacion     = source.FechaOperacion,
+                    target.ExistenciaInicial  = source.ExistenciaInicial,
+                    target.Entradas            = source.Entradas,
+                    target.Salidas             = source.Salidas,
+                    target.ExistenciaFinal     = source.ExistenciaFinal
+
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    ClaveSimi,
+                    FechaOperacion,
+                    Id_Producto,
+                    ExistenciaInicial,
+                    Entradas,
+                    Salidas,
+                    ExistenciaFinal
+                )
+                VALUES (
+                    source.ClaveSimi,
+                    source.FechaOperacion,
+                    source.Id_Producto,
+                    source.ExistenciaInicial,
+                    source.Entradas,
+                    source.Salidas,
+                    source.ExistenciaFinal
+                );");
+
+            Logger.Info("Inventarios sincronizados correctamente.");
+        }
+
         #endregion
 
 

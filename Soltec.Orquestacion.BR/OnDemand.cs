@@ -75,8 +75,14 @@ namespace Soltec.Orquestacion.BR
                 await innerZipStream.CopyToAsync(innerMemoryStream, cancellationToken);
 
                 innerMemoryStream.Position = 0;
+                try
+                {
 
-                await ProcesarZipInterno(innerMemoryStream, baseUrl, zipEntry.Name, cancellationToken);
+                    await ProcesarZipInterno(innerMemoryStream, baseUrl, zipEntry.Name, cancellationToken);
+                }catch (Exception ex)
+                {
+                    _logger.LogError($"Se encontró un error al procesar: {zipEntry.Name}. Error: {ex.Message}");
+                }
             }
         }
 

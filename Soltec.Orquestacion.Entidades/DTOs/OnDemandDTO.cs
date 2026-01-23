@@ -8,9 +8,16 @@ public class OnDemandDTO
     [JsonProperty("Producto")]
     public List<Producto> producto { get; set; } = new();
 
-    // 🔥 AQUÍ ESTÁ LA CLAVE
     [JsonProperty("Producto_Combo")]
     public List<Producto_Combo> productoCombo { get; set; } = new();
+
+    // 🆕 NUEVO OBJETO
+    [JsonProperty("Inventarios")]
+    public List<Inventario> inventarios { get; set; } = new();
+
+    // =========================
+    // Clases internas
+    // =========================
 
     public class ProductoRecomendado
     {
@@ -71,5 +78,17 @@ public class OnDemandDTO
         public string Id_Producto { get; set; }
         public int Cantidad { get; set; }
         public decimal Descuento { get; set; }
+    }
+
+    // 🆕 CLASE INVENTARIO
+    public class Inventario
+    {
+        public string ClaveSimi { get; set; }
+        public DateTime? FechaOperacion { get; set; }   // NULL en SQL
+        public string Id_Producto { get; set; }           
+        public int? ExistenciaInicial { get; set; }
+        public int? Entradas { get; set; }
+        public int? Salidas { get; set; }
+        public int? ExistenciaFinal { get; set; }
     }
 }
