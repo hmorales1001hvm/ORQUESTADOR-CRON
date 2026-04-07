@@ -20,7 +20,7 @@ namespace WorkerServiceHistoricos
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Worker Históricos iniciado.");
+            _logger.LogInformation("Worker Históricos ON DEMAND iniciado.");
 
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
 
@@ -49,7 +49,7 @@ namespace WorkerServiceHistoricos
             {
                 using var scope = _scopeFactory.CreateScope();
                 var historicos = scope.ServiceProvider
-                    .GetRequiredService<Historicos>();
+                    .GetRequiredService<HistoricosOnDemand>();
 
                 _logger.LogInformation("Históricos iniciado.");
                 await historicos.ProcesaHistoricos(ct);

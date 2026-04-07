@@ -9,7 +9,7 @@ using DocumentFormat.OpenXml.Office2010.Excel;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Newtonsoft.Json;
 using Renci.SshNet;
-using Soltec.Common.Logger;
+//using Soltec.Common.Logger;
 using Soltec.Orquestacion.BR.Entities;
 using Soltec.Orquestacion.DA.Entities;
 using Soltec.Orquestacion.Entidades;
@@ -72,14 +72,14 @@ namespace Soltec.Orquestacion.BR
                     {
                         if (IsProcessRunning($"{file.NombreProceso}"))
                         {
-                            Logger.Info($"La aplicación {file.NombreEXE} se encuentra en ejecución .");
+                            //Logger.Info($"La aplicación {file.NombreEXE} se encuentra en ejecución .");
                         }
                         else
                         {
                             // Verifica que exista el archivo
                             if (!System.IO.File.Exists($"{file.Ruta}{file.NombreEXE}"))
                             {
-                                Logger.Warning($"❌ No se encontró la aplicación en: " + $"{file.Ruta}{file.NombreEXE}");
+                                //Logger.Warning($"❌ No se encontró la aplicación en: " + $"{file.Ruta}{file.NombreEXE}");
                             }
                             else
                             {
@@ -100,17 +100,17 @@ namespace Soltec.Orquestacion.BR
                                         };
 
                                         System.Diagnostics.Process.Start(psi);
-                                        Logger.Info($"La aplicación {rutaCompleta} se ha iniciado correctamente.");
+                                        //Logger.Info($"La aplicación {rutaCompleta} se ha iniciado correctamente.");
                                     }
                                     else
                                     {
-                                        Logger.Info("No se encontró el archivo: " + rutaCompleta);
+                                        //Logger.Info("No se encontró el archivo: " + rutaCompleta);
                                     }
 
                                 }
                                 catch (Exception ex)
                                 {
-                                    Logger.Error($"⚠️ Error al iniciar la aplicación {file.NombreEXE}: \n{ex.Message}");
+                                    //Logger.Error($"⚠️ Error al iniciar la aplicación {file.NombreEXE}: \n{ex.Message}");
                                 }
                             }
                         }
@@ -163,7 +163,7 @@ namespace Soltec.Orquestacion.BR
             using (var sftp = new SftpClient(connectionInfo))
             {
                 sftp.Connect();
-                Logger.Info("Conectado al servidor SFTP.");
+                //Logger.Info("Conectado al servidor SFTP.");
                 var files = sftp.ListDirectory(remoteFilePath);
 
                 foreach (var file in files)
@@ -178,12 +178,12 @@ namespace Soltec.Orquestacion.BR
                             {
 
                                 sftp.DownloadFile(remoteFilePath + currentFile, localFile);
-                                Logger.Info("Archivo descargado correctamente.");
+                                //Logger.Info("Archivo descargado correctamente.");
                                 //sftp.RenameFile(remoteFilePath + currentFile, remoteFilePath + newFile);
                                 //Logger.Info("Archivo renombrado correctamente.");
                             }
                         }
-                        Logger.Info($"Archivo: {file.Name}");
+                        //Logger.Info($"Archivo: {file.Name}");
                     }
                 }
                 sftp.Disconnect();
@@ -217,7 +217,7 @@ namespace Soltec.Orquestacion.BR
                                             {
                                                 foreach (var cell in row.Cells())
                                                 {
-                                                    Logger.Info($"Renglon: {r}, Valores: {cell.Value.ToString()}");
+                                                    //Logger.Info($"Renglon: {r}, Valores: {cell.Value.ToString()}");
                                                     if (col == 0)
                                                         con.IdTransaction = Convert.ToInt64(cell.Value.ToString());
                                                     if (col == 1)
@@ -305,7 +305,7 @@ namespace Soltec.Orquestacion.BR
                                             }
                                             catch (Exception ex)
                                             {
-                                                Logger.Error($"Ocurrió un error al procesar el renglon {r}, error: {ex.Message}");
+                                                //Logger.Error($"Ocurrió un error al procesar el renglon {r}, error: {ex.Message}");
                                             }
                                         }
                                         r += 1;
@@ -313,28 +313,28 @@ namespace Soltec.Orquestacion.BR
                                 }
                                 catch (Exception ex)
                                 {
-                                    Logger.Error($"Ocurrió un error al procesar su archivo {filePath}");
+                                    //Logger.Error($"Ocurrió un error al procesar su archivo {filePath}");
                                 }
                             }
                             else
                             {
-                                Logger.Error($"El archivo {filePath} no cumple con las 40 columnas que se necesitan para procesar la información.");
+                                //Logger.Error($"El archivo {filePath} no cumple con las 40 columnas que se necesitan para procesar la información.");
                             }
                         }
                         else
                         {
-                            Logger.Error($"El achivo no tiene columnas {filePath}");
+                            //Logger.Error($"El achivo no tiene columnas {filePath}");
                         }
 
                         if (conciliacion.Count > 0)
                         {
                             // Registra en tabla temporal.
                             File.Move(filePath, filePath + ".pro");
-                            Logger.Info($"Preparando DataTable temporal, para procesar masivamente: {conciliacion.Count}");
+                            //Logger.Info($"Preparando DataTable temporal, para procesar masivamente: {conciliacion.Count}");
                             var jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(conciliacion);
                             DataTable dataTable = await PrepareCopyDataTableKushki(jsonString);
                             await Soltec.Orquestacion.DA.Orchestration.BulkCopyTableMySQL(dataTable, filePath);
-                            Logger.Info($"Información procesada para el archivo {filePath}: {conciliacion.Count}");
+                            //Logger.Info($"Información procesada para el archivo {filePath}: {conciliacion.Count}");
 
 
                         }
@@ -345,156 +345,168 @@ namespace Soltec.Orquestacion.BR
             }
             else
             {
-                Logger.Info("No se encontraron archivos a procesar.");
+                //Logger.Info("No se encontraron archivos a procesar.");
             }
             return true;
         }
 
 
-        public static async Task<bool> ProcesaFacturasConceptosXML(string rutaFacturasXML)
+
+        public static async Task<bool> ProcesaFacturasConceptosXML(string rutaFacturasXML, CancellationToken ct)
         {
-            var fileName = string.Empty;
-            int contadorArchivos = 0;  // 🔥 Aquí controlamos el lote de 10
-
-            if (Directory.Exists(rutaFacturasXML))
+            if (!Directory.Exists(rutaFacturasXML))
             {
-                Logger.Info("Procesando los XMLs");
+                //Logger.Info("Ruta no encontrada para procesar los XMLs");
+                return false;
+            }
 
-                var files = new DirectoryInfo(rutaFacturasXML)
-                            .GetFiles()
-                            .OrderBy(f => f.CreationTime)
-                            .ToList();
+            //Logger.Info("Procesando los XMLs");
 
-                foreach (var file in files)
+            int contadorArchivos = 0;
+            string fileName = string.Empty;
+            var conceptos = new List<Conceptos>();
+
+            var files = new DirectoryInfo(rutaFacturasXML)
+                .GetFiles("*.xml")
+                .OrderBy(f => f.CreationTime)
+                .ToList();
+
+            foreach (var file in files)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                //Logger.Info($"Procesando XML: {file.FullName}");
+
+                bool procesado = await ProcesaConceptos(
+                    file.FullName,
+                    file.Name,
+                    conceptos,
+                    ct);
+
+                if (!procesado)
+                    continue;
+
+                var destino = file.FullName + ".pro";
+                if (!File.Exists(destino))
+                    File.Move(file.FullName, destino);
+
+                fileName = file.Name;
+                contadorArchivos++;
+
+                if (contadorArchivos >= 10)
                 {
-                    if (file.Extension.ToUpper() == ".XML")
-                    {
-                        Logger.Info($"Procesando XML: {file.FullName}");
-
-                        var result = ProcesaConceptos(file.FullName, file.Name);
-
-                        if (result.Result)
-                        {
-                            File.Move(file.FullName, file.FullName + ".pro");
-                            fileName = file.Name;
-
-                            contadorArchivos++;    
-                        }
-
-                        if (contadorArchivos >= 10)
-                        {
-                            if (conceptos.Count > 0)
-                            {
-                                Logger.Info($"Preparando DataTable temporal: {conceptos.Count}");
-
-                                var jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(conceptos);
-                                DataTable dataTable = await PrepareCopyDataTable(jsonString);
-
-                                Logger.Info($"Iniciando carga masiva con {conceptos.Count} conceptos...");
-                                await Soltec.Orquestacion.DA.Orchestration.BulkCopyTableMySQLAsync(dataTable, fileName);
-
-                                conceptos = new List<Conceptos>();
-                            }
-                            contadorArchivos = 0;
-                        }
-                    }
-                }
-
-                if (conceptos.Count > 0)
-                {
-                    Logger.Info($"Procesando lote final: {conceptos.Count}");
-
-                    var jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(conceptos);
-                    DataTable dataTable = await PrepareCopyDataTable(jsonString);
-
-                    await Soltec.Orquestacion.DA.Orchestration.BulkCopyTableMySQLAsync(dataTable, fileName);
-
-                    conceptos = new List<Conceptos>();
+                    await ProcesarLote(conceptos, fileName, ct);
+                    conceptos.Clear();
+                    contadorArchivos = 0;
                 }
             }
-            else
+
+            // Lote final
+            if (conceptos.Any())
             {
-                Logger.Info("Ruta no encontrada para procesar los XMLs");
+                await ProcesarLote(conceptos, fileName, ct);
+                conceptos.Clear();
             }
 
             return true;
         }
 
 
-        public static async Task<bool> ProcesaConceptos(string file, string fileName)
+        private static async Task ProcesarLote(List<Conceptos> conceptos, string fileName, CancellationToken ct)
         {
-            XDocument xml = XDocument.Load(file);
-            XNamespace cfdi = "http://www.sat.gob.mx/cfd/4";
-            XNamespace tfd = "http://www.sat.gob.mx/TimbreFiscalDigital";
+            if (!conceptos.Any())
+                return;
+
+            ct.ThrowIfCancellationRequested();
+
+            //Logger.Info($"Preparando DataTable temporal: {conceptos.Count}");
+
+            var jsonString = Newtonsoft.Json.JsonConvert.SerializeObject(conceptos);
+            DataTable dataTable = await PrepareCopyDataTable(jsonString);
+
+            //Logger.Info($"Iniciando carga masiva con {conceptos.Count} conceptos...");
+            await Soltec.Orquestacion.DA.Orchestration
+                .BulkCopyTableMySQLAsync(dataTable, fileName);
+        }
+
+        public static async Task<bool> ProcesaConceptos(string file, string fileName,   List<Conceptos> conceptos,  CancellationToken ct)
+        {
             try
             {
+                ct.ThrowIfCancellationRequested();
+
+                XDocument xml = XDocument.Load(file);
+
+                XNamespace cfdi = "http://www.sat.gob.mx/cfd/4";
+                XNamespace tfd = "http://www.sat.gob.mx/TimbreFiscalDigital";
+
                 var comprobante = xml.Element(cfdi + "Comprobante");
-                var folio = comprobante?.Attribute("Folio")?.Value;
-                var fecha = comprobante?.Attribute("Fecha")?.Value;
-                var tipoDeComprobante = comprobante?.Attribute("TipoDeComprobante")?.Value;
-                
-                var _conceptos = xml.Descendants(cfdi + "Concepto");
-                var complemento = comprobante?.Element(cfdi + "Complemento");
+                if (comprobante == null)
+                    return false;
+
+                var tipoDeComprobante = comprobante.Attribute("TipoDeComprobante")?.Value;
+                if (tipoDeComprobante != "I")
+                    return false;
+
+                var emisor = comprobante.Element(cfdi + "Emisor");
+                var rfc = emisor?.Attribute("Rfc")?.Value;
+
+                if (string.IsNullOrEmpty(rfc) || rfc.ToUpper() != "FSI970908ML5")
+                    return false;
+
+                var complemento = comprobante.Element(cfdi + "Complemento");
                 var timbre = complemento?.Element(tfd + "TimbreFiscalDigital");
-                var emisor = xml.Root.Element(cfdi + "Emisor");
-                var uuid = string.Empty;
-                if (!string.IsNullOrEmpty(tipoDeComprobante))
+                var uuid = timbre?.Attribute("UUID")?.Value ?? string.Empty;
+
+                var folio = comprobante.Attribute("Folio")?.Value;
+                var fechaStr = comprobante.Attribute("Fecha")?.Value;
+
+                if (!DateTime.TryParse(fechaStr, out var fecha))
+                    return false;
+
+                var conceptosXml = xml.Descendants(cfdi + "Concepto");
+
+                foreach (var concepto in conceptosXml)
                 {
-                    if (tipoDeComprobante == "I")
+                    ct.ThrowIfCancellationRequested();
+
+                    //Logger.Info($"Se va a subir la factura: {folio} - {fecha}");
+
+                    conceptos.Add(new Conceptos
                     {
-                        if (emisor != null)
-                        {
-                            string rfc = emisor.Attribute("Rfc")?.Value;
-                            {
-                                if (!string.IsNullOrEmpty(rfc) && rfc.ToUpper() == "FSI970908ML5")
-                                {
-                                    if (timbre != null)
-                                        uuid = timbre.Attribute("UUID")?.Value;
-
-                                    foreach (var concepto in _conceptos)
-                                    {
-                                        Logger.Info($"Se va a subir la factura: {folio} - {Convert.ToDateTime(fecha)}");
-                                        var cantidad = concepto.Attribute("Cantidad")?.Value;
-                                        var valorUnitario = concepto.Attribute("ValorUnitario")?.Value;
-                                        var importe = concepto.Attribute("Importe")?.Value;
-                                        var descuento = concepto.Attribute("Descuento")?.Value;
-                                        conceptos.Add(new Conceptos()
-                                        {
-                                            Folio = folio,
-                                            Fecha = Convert.ToDateTime(fecha),
-                                            ValorUnitario = string.IsNullOrEmpty(valorUnitario) ? 0 : Convert.ToDecimal(valorUnitario),
-                                            ClaveProdServ = concepto.Attribute("ClaveProdServ")?.Value,
-                                            NoIdentificacion = concepto.Attribute("NoIdentificacion")?.Value,
-                                            Cantidad = string.IsNullOrEmpty(cantidad) ? 0 : Convert.ToDecimal(cantidad),
-                                            ClaveUnidad = concepto.Attribute("ClaveUnidad")?.Value,
-                                            Unidad = concepto.Attribute("Unidad")?.Value,
-                                            Descripcion = concepto.Attribute("Descripcion")?.Value,
-                                            Importe = string.IsNullOrEmpty(importe) ? 0 : Convert.ToDecimal(importe),
-                                            Descuento = string.IsNullOrEmpty(descuento) ? 0 : Convert.ToDecimal(descuento),
-                                            UUID = uuid,
-                                            FileName = fileName
-                                        });
-                                    }
-                                }
-                                else
-                                {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        }
-                        return true;
-                    }
-                    else
-                        return false;
+                        Folio = folio,
+                        Fecha = fecha,
+                        ClaveProdServ = concepto.Attribute("ClaveProdServ")?.Value,
+                        NoIdentificacion = concepto.Attribute("NoIdentificacion")?.Value,
+                        ClaveUnidad = concepto.Attribute("ClaveUnidad")?.Value,
+                        Unidad = concepto.Attribute("Unidad")?.Value,
+                        Descripcion = concepto.Attribute("Descripcion")?.Value,
+                        UUID = uuid,
+                        FileName = fileName,
+                        Cantidad = ParseDecimal(concepto.Attribute("Cantidad")?.Value),
+                        ValorUnitario = ParseDecimal(concepto.Attribute("ValorUnitario")?.Value),
+                        Importe = ParseDecimal(concepto.Attribute("Importe")?.Value),
+                        Descuento = ParseDecimal(concepto.Attribute("Descuento")?.Value)
+                    });
                 }
-                else return false;
 
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
+                //Logger.Error($"Error procesando XML: {file}. Error: {ex.Message}");
                 return false;
             }
+        }
+
+
+        private static decimal ParseDecimal(string value)
+        {
+            return decimal.TryParse(value, out var result) ? result : 0;
         }
 
 
@@ -536,21 +548,23 @@ namespace Soltec.Orquestacion.BR
                             var response = s3Client.PutObjectAsync(putRequest).Result;
                             if (response.HttpStatusCode == System.Net.HttpStatusCode.OK)
                             {
-                                Logger.Important($"Se procesó el ticket: {ticket.idDatosTicket} en el Bucket: {bucketNameComplete + nombreArchivoXML}");
+                                //Logger.Important($"Se procesó el ticket: {ticket.idDatosTicket} en el Bucket: {bucketNameComplete + nombreArchivoXML}");
                                 var r = new Soltec.Orquestacion.DA.Orchestration().BackupBucketContaboUpdateAsync(ticket.idDatosTicket);
                                 if (r.Result)
-                                    Logger.Info($"El ticket: {ticket.idDatosTicket} se actualizó a procesado");
+                                    Console.Write("");
+                                //Logger.Info($"El ticket: {ticket.idDatosTicket} se actualizó a procesado");
                                 else
-                                    Logger.Error($"El ticket: {ticket.idDatosTicket} NO se actualizó a procesado");
+                                    Console.Write("");
+                                //Logger.Error($"El ticket: {ticket.idDatosTicket} NO se actualizó a procesado");
                             }
                             else
                             {
-                                Logger.Error($"Ocurrió un error al procesar el ticket en el Bucket: {ticket.idDatosTicket}, respuesta del servicio. {response}");
+                                //Logger.Error($"Ocurrió un error al procesar el ticket en el Bucket: {ticket.idDatosTicket}, respuesta del servicio. {response}");
                             }
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error(ex.Message);
+                            //Logger.Error(ex.Message);
                         }
                     }
 
@@ -559,7 +573,7 @@ namespace Soltec.Orquestacion.BR
             }
             catch (Exception e)
             {
-                Logger.Error(e.Message);
+                //Logger.Error(e.Message);
                 return false;
             }
         }
@@ -588,16 +602,16 @@ namespace Soltec.Orquestacion.BR
                 };
                 PutObjectResponse response = s3Client.PutObjectAsync(putRequest).Result;
 
-                Logger.Info($"Carpeta creada exitosamente: {folderName}");
+                //Logger.Info($"Carpeta creada exitosamente: {folderName}");
             }
             catch (AmazonS3Exception s3Ex)
             {
-                Logger.Error($"Error en Amazon S3: {s3Ex.Message}");
+                //Logger.Error($"Error en Amazon S3: {s3Ex.Message}");
                 return false;
             }
             catch (Exception ex)
             {
-                Logger.Error($"Error general: {ex.Message}");
+                //Logger.Error($"Error general: {ex.Message}");
                 return false;
             }
 
@@ -674,20 +688,22 @@ namespace Soltec.Orquestacion.BR
                     httpClient.DefaultRequestHeaders.Clear();
                     httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                     httpClient.DefaultRequestHeaders.Add("apisimi", "de21acf9-bc05-479b-b61c-455de3fa0ae5");
-                    Logger.Info($"Consumiendo servicio: {apiRecibeTicket}. No. {x}");
+                    //Logger.Info($"Consumiendo servicio: {apiRecibeTicket}. No. {x}");
 
                     HttpResponseMessage responseMessage = httpClient.PostAsync(apiRecibeTicket, content).Result;
-                    Logger.Info($"Response {apiRecibeTicket}: {responseMessage.StatusCode}. No. {x}");
+                    //Logger.Info($"Response {apiRecibeTicket}: {responseMessage.StatusCode}. No. {x}");
 
                     // Valida si el estatus es OK
                     if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
-                        Logger.Info($"Respuesta exitosa.{responseMessage.StatusCode}. No. {x}");
+                        Console.Write("");
+                    //Logger.Info($"Respuesta exitosa.{responseMessage.StatusCode}. No. {x}");
                     else
-                        Logger.Info($"Respuesta NO exitosa. {responseMessage.StatusCode}. No. {x}");
+                                Console.Write("");
+                        //Logger.Info($"Respuesta NO exitosa. {responseMessage.StatusCode}. No. {x}");
                 }
                 catch (Exception ex)
                 {
-                    Logger.Error(ex.Message);
+                    //Logger.Error(ex.Message);
                 }
             }
 
@@ -720,7 +736,7 @@ namespace Soltec.Orquestacion.BR
 
                 if (serverMySQL == null && idEmpresa != 0)
                 {
-                    Logger.Error($"El proceso no puede ser ejecutado, la empresa {idEmpresa} no existe.");
+                    //Logger.Error($"El proceso no puede ser ejecutado, la empresa {idEmpresa} no existe.");
                     return false;
                 }
 
@@ -748,7 +764,7 @@ namespace Soltec.Orquestacion.BR
                             string directoryPath = Directory.GetParent(fileName)?.ToString();
                             var directoryChild = directoryPath + $"/Tmp_{idEmpresa}_{valorInicial}_{valorFinal}/{Path.GetFileNameWithoutExtension(fileName)}";
 
-                            Logger.Info("Descomprimiendo zip: " + fileList.FileName + " en el directorio: " + directoryPath);
+                            //Logger.Info("Descomprimiendo zip: " + fileList.FileName + " en el directorio: " + directoryPath);
                             Directory.CreateDirectory(directoryChild.Replace("Operativas_", ""));
                             System.IO.Compression.ZipFile.ExtractToDirectory(fileName + ".zip", directoryChild.Replace("Operativas_", ""));
                             processFiles += 1;
@@ -761,15 +777,15 @@ namespace Soltec.Orquestacion.BR
                                 //File.Delete(fileName + ".zip");
                             }
                             catch { }
-                            Logger.Info($"Se descomprimió zip correctamente: {fileName} en el directorio: {directoryPath}");
+                            //Logger.Info($"Se descomprimió zip correctamente: {fileName} en el directorio: {directoryPath}");
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error($"Ocurrió un error en el archivo .ZIP: {fileList.FileName} - {ex.Message}");
+                            //Logger.Error($"Ocurrió un error en el archivo .ZIP: {fileList.FileName} - {ex.Message}");
                         }
                     }
                     if (processFiles > 0)
-                        Logger.Important($"Total de sucursales a procesar: {processFiles}");
+                        //Logger.Important($"Total de sucursales a procesar: {processFiles}");
 
 
                     if (Directory.Exists(pathSourceFile + $"/Tmp_{idEmpresa}_{valorInicial}_{valorFinal}"))
@@ -795,7 +811,7 @@ namespace Soltec.Orquestacion.BR
                                     if (orquestadorServidorMySQL != null)
                                     {
                                         var idSucursal = orquestadorServidorMySQL.IdSucursal;
-                                        Logger.Info($"Cargando tabla de paso para: {_file}");
+                                        //Logger.Info($"Cargando tabla de paso para: {_file}");
 
                                         dataTable = await PrepareCopyTableMovtos(_file.FullName,
                                                                                  dataTable,
@@ -828,16 +844,17 @@ namespace Soltec.Orquestacion.BR
                         Directory.Delete(pathSourceFile + $"/Tmp_{idEmpresa}_{valorInicial}_{valorFinal}", true);
 
                     }
-                    Logger.Important($"Termina carga de archivos; total de archivos procesados: {fileCount}");
+                    //Logger.Important($"Termina carga de archivos; total de archivos procesados: {fileCount}");
                 }
                 else
                 {
-                    Logger.Warning("No se encontraron archivos a proces");
+                    Console.Write("");
+                    //Logger.Warning("No se encontraron archivos a proces");
                 }
             }
             catch (Exception ex)
             {
-                Logger.Error($"No fue posible descomprimir los archivos zip, error: {ex.ToString()}");
+                //Logger.Error($"No fue posible descomprimir los archivos zip, error: {ex.ToString()}");
                 return true;
             }
             return true;
@@ -874,7 +891,7 @@ namespace Soltec.Orquestacion.BR
                             string directoryPath = Directory.GetParent(fileName)?.ToString();
                             var directoryChild = directoryPath + $"\\Tmp\\{Path.GetFileNameWithoutExtension(fileName)}";
 
-                            Logger.Info("Descomprimiendo zip: " + fileList.FileName + " en el directorio: " + directoryPath);
+                            //Logger.Info("Descomprimiendo zip: " + fileList.FileName + " en el directorio: " + directoryPath);
                             Directory.CreateDirectory(directoryChild.Replace("CATALOGOS_", ""));
                             System.IO.Compression.ZipFile.ExtractToDirectory(fileName + ".zip", directoryChild.Replace("CATALOGOS_", ""));
                             try
@@ -882,11 +899,11 @@ namespace Soltec.Orquestacion.BR
                                 File.Delete(fileName + ".zip");
                             }
                             catch { }
-                            Logger.Info($"Se descomprimió zip correctamente: {fileName} en el directorio: {directoryPath}");
+                            //Logger.Info($"Se descomprimió zip correctamente: {fileName} en el directorio: {directoryPath}");
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error($"Ocurrió un error en el archivo .ZIP: {fileList.FileName} - {ex.Message}");
+                            //Logger.Error($"Ocurrió un error en el archivo .ZIP: {fileList.FileName} - {ex.Message}");
                         }
                     }
 
@@ -909,7 +926,7 @@ namespace Soltec.Orquestacion.BR
 
                                 if (_file.Name.ToUpper().Split('.')[0] == fil.Nombre.ToUpper())
                                 {
-                                    Logger.Info($"Cargando tabla de paso para el catálogo: {_file.FullName} de la sucursal: {_file.Directory.Name}");
+                                    //Logger.Info($"Cargando tabla de paso para el catálogo: {_file.FullName} de la sucursal: {_file.Directory.Name}");
                                     dataTable = await PrepareCopyTable(_file.FullName,
                                                                         dataTable,
                                                                         _file.Directory.Name);
@@ -926,16 +943,16 @@ namespace Soltec.Orquestacion.BR
                         Directory.Delete(pathSourceFile + $"\\Tmp", true);
 
                     }
-                    Logger.Important($"Termina carga de archivos; total de archivos procesados: {fileCount}");
+                    //Logger.Important($"Termina carga de archivos; total de archivos procesados: {fileCount}");
                 }
                 else
                 {
-                    Logger.Warning("No se encontraron archivos a proces");
+                    //Logger.Warning("No se encontraron archivos a proces");
                 }
             }
             catch (Exception ex)
             {
-                Logger.Error($"No fue posible descomprimir los archivos zip, error: {ex.ToString()}");
+                //Logger.Error($"No fue posible descomprimir los archivos zip, error: {ex.ToString()}");
                 return true;
             }
             return true;
@@ -972,14 +989,14 @@ namespace Soltec.Orquestacion.BR
                     }
                     catch (Exception ex)
                     {
-                        Logger.Error(ex.Message);
+                        //Logger.Error(ex.Message);
                         return new DataTable();
                     }
                 }
             }
             catch (Exception ex)
             {
-                Logger.Error(ex.Message);
+                //Logger.Error(ex.Message);
                 return new DataTable();
             }
 
@@ -1002,7 +1019,7 @@ namespace Soltec.Orquestacion.BR
             }
             catch (Exception ex)
             {
-                Logger.Error(ex.Message);
+                //Logger.Error(ex.Message);
                 return new DataTable();
             }
 
@@ -1024,7 +1041,7 @@ namespace Soltec.Orquestacion.BR
             }
             catch (Exception ex)
             {
-                Logger.Error(ex.Message);
+                //Logger.Error(ex.Message);
                 return new DataTable();
             }
 
@@ -1070,14 +1087,14 @@ namespace Soltec.Orquestacion.BR
                     }
                     catch (Exception ex)
                     {
-                        Logger.Error(ex.Message);
+                        //Logger.Error(ex.Message);
                         return new DataTable();
                     }
                 }
             }
             catch (Exception ex)
             {
-                Logger.Error(ex.Message);
+                //Logger.Error(ex.Message);
                 return new DataTable();
             }
 
@@ -1113,84 +1130,84 @@ namespace Soltec.Orquestacion.BR
             return true;
         }
 
-        public static async Task<bool> ProcesaHistoricos(string[] urls)
-        {
-            var resultado = (await Soltec.Orquestacion.DA.Orchestration.CargaHistoricosRecibidos());
-            foreach (var item in resultado)
-            {
-                if (string.IsNullOrEmpty(item.Clave))
-                    Logger.Error("Sucursal no valida");
+        //public static async Task<bool> ProcesaHistoricos(string[] urls)
+        //{
+        //    var resultado = (await Soltec.Orquestacion.DA.Orchestration.CargaHistoricosRecibidos());
+        //    foreach (var item in resultado)
+        //    {
+        //        if (string.IsNullOrEmpty(item.Clave))
+        //            Logger.Error("Sucursal no valida");
 
-                //var urls = _configuration.GetSection("ApiSettings:Urls").Get<string[]>();
+        //        //var urls = _configuration.GetSection("ApiSettings:Urls").Get<string[]>();
 
-                if (urls == null || urls.Length == 0)
-                    Logger.Error("No hay URLs de API configuradas.");
+        //        if (urls == null || urls.Length == 0)
+        //            Logger.Error("No hay URLs de API configuradas.");
 
-                byte[] fileBytes = null;
+        //        byte[] fileBytes = null;
 
-                // Intentar descargar desde la primera URL disponible
-                foreach (var url in urls)
-                {
-                    try
-                    {
-                        //var client = _httpClientFactory.CreateClient();
-                        using var client = new HttpClient();
-                        client.BaseAddress = new Uri(url.EndsWith("/") ? url : url + "/");
+        //        // Intentar descargar desde la primera URL disponible
+        //        foreach (var url in urls)
+        //        {
+        //            try
+        //            {
+        //                //var client = _httpClientFactory.CreateClient();
+        //                using var client = new HttpClient();
+        //                client.BaseAddress = new Uri(url.EndsWith("/") ? url : url + "/");
 
-                        var endpoint = new Uri(client.BaseAddress, $"venta/DescargarScriptZip?sucursal={item.Clave}");
-                        var response = await client.GetAsync(endpoint);
+        //                var endpoint = new Uri(client.BaseAddress, $"venta/DescargarScriptZip?sucursal={item.Clave}");
+        //                var response = await client.GetAsync(endpoint);
 
-                        if (response.IsSuccessStatusCode)
-                        {
-                            fileBytes = await response.Content.ReadAsByteArrayAsync();
-                            break;
-                        }
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-                }
+        //                if (response.IsSuccessStatusCode)
+        //                {
+        //                    fileBytes = await response.Content.ReadAsByteArrayAsync();
+        //                    break;
+        //                }
+        //            }
+        //            catch
+        //            {
+        //                continue;
+        //            }
+        //        }
 
-                if (fileBytes == null)
-                    Logger.Error ("No se pudo descargar el archivo desde ninguna URL activa.");
+        //        if (fileBytes == null)
+        //            Logger.Error ("No se pudo descargar el archivo desde ninguna URL activa.");
 
-                // --- Leer ZIP ---
-                using var memoryStream = new MemoryStream(fileBytes);
-                using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
+        //        // --- Leer ZIP ---
+        //        using var memoryStream = new MemoryStream(fileBytes);
+        //        using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
 
-                ConectDB transmisionHistorico = null;
-                SalesDataDto salesDataDto = null;
+        //        ConectDB transmisionHistorico = null;
+        //        SalesDataDto salesDataDto = null;
 
-                foreach (var entry in archive.Entries)
-                {
-                    if (!entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-                        continue;
+        //        foreach (var entry in archive.Entries)
+        //        {
+        //            if (!entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        //                continue;
 
-                    using var entryStream = entry.Open();
-                    using var reader = new StreamReader(entryStream);
-                    string jsonContent = await reader.ReadToEndAsync();
+        //            using var entryStream = entry.Open();
+        //            using var reader = new StreamReader(entryStream);
+        //            string jsonContent = await reader.ReadToEndAsync();
 
-                    if (entry.Name == $"{item.Clave}_infoDB.json")
-                    {
-                        transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
-                    }
-                    else if (entry.Name == $"{item.Clave}_data.json")
-                    {
-                        salesDataDto = JsonConvert.DeserializeObject<SalesDataDto>(jsonContent);
-                    }
-                }
+        //            if (entry.Name == $"{item.Clave}_infoDB.json")
+        //            {
+        //                transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
+        //            }
+        //            else if (entry.Name == $"{item.Clave}_data.json")
+        //            {
+        //                salesDataDto = JsonConvert.DeserializeObject<SalesDataDto>(jsonContent);
+        //            }
+        //        }
 
-                if (transmisionHistorico == null || salesDataDto == null)
-                    Logger.Error("El ZIP no contiene los archivos JSON esperados.");
+        //        if (transmisionHistorico == null || salesDataDto == null)
+        //            Logger.Error("El ZIP no contiene los archivos JSON esperados.");
 
-                // Procesar ambos archivos juntos
-                var result = await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricos(transmisionHistorico, salesDataDto, item.Clave, item.Id);
+        //        // Procesar ambos archivos juntos
+        //        var result = await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricos(transmisionHistorico, salesDataDto, item.Clave, item.Id);
 
-            }
+        //    }
 
-            return true;
-        }
+        //    return true;
+        //}
 
         public static async Task<bool> ProcesaHistoricosSIMIPET(string[] urls)
         {
@@ -1198,12 +1215,13 @@ namespace Soltec.Orquestacion.BR
             foreach (var item in resultado)
             {
                 if (string.IsNullOrEmpty(item.Clave))
-                    Logger.Error("Sucursal no valida");
+                    //Logger.Error("Sucursal no valida");
 
                 //var urls = _configuration.GetSection("ApiSettings:Urls").Get<string[]>();
 
                 if (urls == null || urls.Length == 0)
-                    Logger.Error("No hay URLs de API configuradas.");
+                        Console.Write("");
+                //Logger.Error("No hay URLs de API configuradas.");
 
                 byte[] fileBytes = null;
 
@@ -1232,7 +1250,8 @@ namespace Soltec.Orquestacion.BR
                 }
 
                 if (fileBytes == null)
-                    Logger.Error("No se pudo descargar el archivo desde ninguna URL activa.");
+                    Console.Write("");
+                //Logger.Error("No se pudo descargar el archivo desde ninguna URL activa.");
 
                 // --- Leer ZIP ---
                 using var memoryStream = new MemoryStream(fileBytes);
@@ -1261,7 +1280,8 @@ namespace Soltec.Orquestacion.BR
                 }
 
                 if (transmisionHistorico == null || salesDataDto == null)
-                    Logger.Error("El ZIP no contiene los archivos JSON esperados.");
+                    Console.Write("");
+                //Logger.Error("El ZIP no contiene los archivos JSON esperados.");
 
                 // Procesar ambos archivos juntos
                 var result = await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricosSIMIPET(transmisionHistorico, salesDataDto, item.Clave, item.Id);
@@ -1321,7 +1341,7 @@ namespace Soltec.Orquestacion.BR
 
                             foreach (var message in response.Messages)
                             {
-                                Logger.Important($"MessageId: {message.MessageId}");
+                                //Logger.Important($"MessageId: {message.MessageId}");
                                 if (message.MessageAttributes.TryGetValue("Sucursal", out var sucursalAttr))
                                 {
                                     sucursal = sucursalAttr.StringValue;
@@ -1369,7 +1389,7 @@ namespace Soltec.Orquestacion.BR
             }
             catch (Exception e)
             {
-                Logger.Error(e.Message);
+                //Logger.Error(e.Message);
                 return false;
             }
         }

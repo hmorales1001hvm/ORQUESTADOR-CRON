@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace Soltec.Orquestacion.BR
 {
-    public class Historicos
+    public class HistoricosOnDemand
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<Historicos> _logger;
@@ -23,7 +23,7 @@ namespace Soltec.Orquestacion.BR
         const int TAM_BLOQUE = 5;          
         const int BLOQUES_PARALELOS = 10;   
 
-        public Historicos(IHttpClientFactory httpClientFactory, ILogger<Historicos> logger, IOptions<ApiSettings> apiSettings)
+        public HistoricosOnDemand(IHttpClientFactory httpClientFactory, ILogger<Historicos> logger, IOptions<ApiSettings> apiSettings)
         {
             _httpClientFactory = httpClientFactory;
             _logger = logger;
@@ -32,54 +32,55 @@ namespace Soltec.Orquestacion.BR
 
         public async Task<bool> ProcesaHistoricos(CancellationToken ct)
         {
-            var recibidos = await DA.Orchestration.CargaHistoricosRecibidos();
-            var servers = await DA.Orchestration.LoadServersDB();
-
-            var bloques = recibidos.ChunkBy(TAM_BLOQUE);
-
-            var options = new ParallelOptions
+            var recibidos = await DA.Orchestration.CargaHistoricosRecibidosOnDemand();
+            if (recibidos.Count > 0)
             {
-                MaxDegreeOfParallelism = BLOQUES_PARALELOS,
-                CancellationToken = ct
-            };
 
-            _logger.LogInformation($"Procesando por bloques: {BLOQUES_PARALELOS}");
-            await Parallel.ForEachAsync(bloques, options, async (bloque, token) =>
-            {
-                var tomados = new List<ModelTransmisiones>();
+                var servers = await DA.Orchestration.LoadServersDB();
 
-                // 🔒 Toma lógica
-                foreach (var item in bloque)
+                var bloques = recibidos.ChunkBy(TAM_BLOQUE);
+
+                var options = new ParallelOptions
                 {
-                    var tomado = await DA.Orchestration.ActualizarEstatus(item.Id,item.Clave, "PROCESANDO...",
-                        "RECIBIDO");
+                    MaxDegreeOfParallelism = BLOQUES_PARALELOS,
+                    CancellationToken = ct
+                };
 
-                    if (tomado)
-                        tomados.Add(item);
-
-                    _logger.LogInformation($"Procesando {item.Clave}, estatus: PROCESANDO...");
-                }
-
-                // 🧠 Procesamiento SECUENCIAL del bloque
-                foreach (var item in tomados)
+                _logger.LogInformation($"Procesando por bloques: {BLOQUES_PARALELOS}");
+                await Parallel.ForEachAsync(bloques, options, async (bloque, token) =>
                 {
-                    try
+                    var tomados = new List<ModelTransmisiones>();
+
+                    // 🔒 Toma lógica
+                    foreach (var item in bloque)
                     {
-                        await ProcesarHistorico(item, token, servers);
+                        var tomado = await DA.Orchestration.ActualizarEstatus(item.Id, item.Clave, "PROCESANDO...",
+                            "RECIBIDO");
 
-                        await DA.Orchestration.ActualizarEstatus(item.Id, item.Clave, "PROCESADO", "PROCESANDO...");
+                        if (tomado)
+                            tomados.Add(item);
+
+                        _logger.LogInformation($"Procesando {item.Clave}, estatus: PROCESANDO...");
                     }
-                    catch (Exception ex)
+
+                    // 🧠 Procesamiento SECUENCIAL del bloque
+                    foreach (var item in tomados)
                     {
-                        _logger.LogError(ex,
-                            "Error procesando histórico {Clave}",
-                            item.Clave);
+                        try
+                        {
+                            await ProcesarHistorico(item, token, servers);
 
-                        await DA.Orchestration.ActualizarEstatus(item.Id, item.Clave, "RECIBIDO", "PROCESANDO...");
+                            await DA.Orchestration.ActualizarEstatus(item.Id, item.Clave, "PROCESADO", "PROCESANDO...");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error procesando histórico {Clave}", item.Clave);
+
+                            await DA.Orchestration.ActualizarEstatus(item.Id, item.Clave, "RECIBIDO", "PROCESANDO...");
+                        }
                     }
-                }
-            });
-
+                });
+            }
             return true;
         }
 
@@ -99,7 +100,7 @@ namespace Soltec.Orquestacion.BR
 
                     var endpoint = new Uri(
                         client.BaseAddress,
-                        $"venta/DescargarScriptZip?sucursal={item.Clave}");
+                        $"venta/DescargarScriptZipOnDemand?sucursal={item.Clave}");
 
                     var response = await client.GetAsync(endpoint, cancellationToken);
 
@@ -108,6 +109,13 @@ namespace Soltec.Orquestacion.BR
                         uri = url;
                         fileBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
                         break;
+                    } else
+                    {
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            var error = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Error en {url}: {response.StatusCode} - {error}");
+                        }
                     }
                 }
                 catch { }
@@ -120,7 +128,7 @@ namespace Soltec.Orquestacion.BR
             using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
 
             ConectDB transmisionHistorico = null;
-            SalesDataDto salesDataDto = null;
+            OnDemandDTO salesDataDto = null;
 
             foreach (var entry in archive.Entries)
             {
@@ -133,21 +141,18 @@ namespace Soltec.Orquestacion.BR
                 if (entry.Name == $"{item.Clave}_infoDB.json")
                     transmisionHistorico = JsonConvert.DeserializeObject<ConectDB>(json);
                 else if (entry.Name == $"{item.Clave}_data.json")
-                    salesDataDto = JsonConvert.DeserializeObject<SalesDataDto>(json);
+                    salesDataDto = JsonConvert.DeserializeObject<OnDemandDTO>(json);
             }
 
             if (transmisionHistorico == null || salesDataDto == null)
                 throw new Exception($"ZIP inválido para {item.Clave}");
             var server = orquestadorServidorMySQLs.Where(x => x.ClaveSimi == item.Clave).FirstOrDefault();
-            if (server != null)
-            {
-                await Soltec.Orquestacion.DA.Orchestration
-                    .SincronizaHistoricos(transmisionHistorico, salesDataDto, item.Clave, item.Id, server);
-            }
-            string zipName = $"{item.Clave}_DatosHistoricos.zip";
+
+            await Soltec.Orquestacion.DA.Orchestration.SincronizaHistoricosOnDemand(salesDataDto, item.Clave, server);
+
+            string zipName = $"{item.Clave}_DatosHistoricosOnDemand.zip";
 
             await EliminarZipRemoto(uri, zipName, cancellationToken);
-            
         }
 
 

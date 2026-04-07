@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using OrquestadorCRON;
-using Soltec.Common.Logger;
+//using Soltec.Common.Logger;
 using Soltec.Orquestacion.BR;
 using System;
 using System.IO;
@@ -36,7 +36,7 @@ namespace Soltec.Orquestacion.App
             }
             catch (Exception ex)
             {
-                Logger.Error(ex);
+                //Logger.Error(ex);
             }
         }
 
@@ -72,18 +72,18 @@ namespace Soltec.Orquestacion.App
                 logName = $"\\Proceso-{processNumber}_{idEmpresa}\\";
             }
 
-            Logger.Info($"No. de proceso: {processNumber}");
-            FileUtil.localLogPath = $"{Settings.LogPath}{logName}";
+            //Logger.Info($"No. de proceso: {processNumber}");
+            //FileUtil.localLogPath = $"{Settings.LogPath}{logName}";
 
             switch (processNumber)
             {
                 case 0:
-                    Logger.Important("========== Iniciando replicación de BD ==========");
+                    //Logger.Important("========== Iniciando replicación de BD ==========");
                     await Orchestration.OrquestacionDB();
                     break;
 
                 case 1:
-                    Logger.Important("========== Iniciando orquestación ==========");
+                    //Logger.Important("========== Iniciando orquestación ==========");
                     await Orchestration.ProcessFiles(
                         Settings.PathSourceFile + "Operativas",
                         idEmpresa,
@@ -92,18 +92,18 @@ namespace Soltec.Orquestacion.App
                     break;
 
                 case 2:
-                    Logger.Important("========== Orquestación catálogos ==========");
+                    //Logger.Important("========== Orquestación catálogos ==========");
                     await Orchestration.ProcessFilesCatalogs(
                         Settings.PathSourceFile + "Catalogos");
                     break;
 
                 case 3:
-                    Logger.Important("========== Actualización catálogos ==========");
+                    //Logger.Important("========== Actualización catálogos ==========");
                     await Orchestration.LoadUpdateCatalogSQLServerAsync();
                     break;
 
                 case 4:
-                    Logger.Important("========== API Recibe Ticket ==========");
+                    //Logger.Important("========== API Recibe Ticket ==========");
                     await Orchestration.RecibeTicket(
                         Settings.PathFileJSON,
                         peticion,
@@ -111,12 +111,12 @@ namespace Soltec.Orquestacion.App
                     break;
 
                 case 5:
-                    Logger.Important("========== Backup Tickets ==========");
+                    //Logger.Important("========== Backup Tickets ==========");
                     await Orchestration.BackupTicketsAsync();
                     break;
 
                 case 6:
-                    Logger.Important("========== Backup Bucket Contabo ==========");
+                    //Logger.Important("========== Backup Bucket Contabo ==========");
                     await Orchestration.BackupBucketContaboAsync(
                         Settings.AccessKey,
                         Settings.SecretKey,
@@ -125,18 +125,18 @@ namespace Soltec.Orquestacion.App
                     break;
 
                 case 7:
-                    Logger.Important("========== Ventas Depósitos ==========");
+                    //Logger.Important("========== Ventas Depósitos ==========");
                     await Orchestration.ProcesaDatosVentaDepositos(arrayEmpresas);
                     break;
 
                 case 8:
-                    Logger.Important("========== Lectura XML ==========");
-                    await Orchestration.ProcesaFacturasConceptosXML(
-                        Settings.RutaFacturasXML);
+                    //Logger.Important("========== Lectura XML ==========");
+                    //await Orchestration.ProcesaFacturasConceptosXML(
+                    //    Settings.RutaFacturasXML);
                     break;
 
                 case 9:
-                    Logger.Important("========== Kushki ==========");
+                    //Logger.Important("========== Kushki ==========");
                     await Orchestration.ProcesaKushki(
                         Settings.KushkiHost,
                         Settings.KushkiUserName,
@@ -146,13 +146,13 @@ namespace Soltec.Orquestacion.App
                     break;
 
                 case 10:
-                    Logger.Important("========== Monitoreo ==========");
+                    //Logger.Important("========== Monitoreo ==========");
                     await Orchestration.MonitoreoArchivos(Settings.ApiURL);
                     break;
 
                 case 11:
                     var version = Assembly.GetExecutingAssembly().GetName().Version;
-                    Logger.Important($"========== SQS AWS [{version}] ==========");
+                    //Logger.Important($"========== SQS AWS [{version}] ==========");
                     await Orchestration.ProcesaSQS(
                         Settings.AccessKeySQS,
                         Settings.SecretKeySQS,
@@ -161,18 +161,18 @@ namespace Soltec.Orquestacion.App
                     break;
 
                 case 12:
-                    var version2 = Assembly.GetExecutingAssembly().GetName().Version;
-                    Logger.Important($"========== Históricos [{version2}] ==========");
-                    await Orchestration.ProcesaHistoricos(ApiUrls);
+                    //var version2 = Assembly.GetExecutingAssembly().GetName().Version;
+                    //Logger.Important($"========== Históricos [{version2}] ==========");
+                    //await Orchestration.ProcesaHistoricos(ApiUrls);
                     break;
                 case 13:
                     var versionSIMIPET = Assembly.GetExecutingAssembly().GetName().Version;
-                    Logger.Important($"========== Históricos [{versionSIMIPET}] ==========");
+                    //Logger.Important($"========== Históricos [{versionSIMIPET}] ==========");
                     await Orchestration.ProcesaHistoricosSIMIPET(ApiUrls);
                     break;
 
                 default:
-                    Logger.Info("Proceso no reconocido.");
+                    //Logger.Info("Proceso no reconocido.");
                     break;
             }
         }

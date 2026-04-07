@@ -19,7 +19,6 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public List<InventarioCosto> InventarioCosto { get; set; } = new();
         public List<SPOSFacturas> SPOSFacturas { get; set; } = new();
     }
-
     public class VentasDto
     {
         public DateTime FechaOperacion { get; set; }
@@ -31,9 +30,23 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public int idRegistradoraVenta { get; set; }
         public int idRegistradoraCobro { get; set; }
         public int TipoOperacion { get; set; }
-        public short Procesado { get; set; } // smallint
+        //public short Procesado { get; set; } // smallint
         public DateTime FechaHoraVenta { get; set; }
         public int TipoVenta { get; set; }
+        public int? IdEmpresa { get; set; }
+        public string Id_Venta_Referencia { get; set; } = string.Empty;
+    }
+
+    public class InventarioCosto
+    {
+        public string ClaveSimi { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+
+        public decimal? CostoUnitario { get; set; }
+
+        public DateTime FechaFactura { get; set; }
+        public DateTime? FechaSurtido { get; set; }
+        public int IdEmpresa { get; set; }
     }
 
     public class VentasProductosDto
@@ -41,6 +54,8 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public DateTime FechaOperacion { get; set; }
         public string ClaveSimi { get; set; } = string.Empty;
         public int? Id_Venta { get; set; }
+
+        //[JsonPropertyName("Codigo")]
         public string Codigo { get; set; } = string.Empty;
         public string Id_ProductoSAT { get; set; } = string.Empty;
         public int? TipoOperacion { get; set; }
@@ -53,8 +68,6 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public bool Combo { get; set; }
         [JsonConverter(typeof(FlexibleBoolConverter))]
         public bool Inventario { get; set; }
-
-        // Campos que pueden venir null en JSON
         public decimal? Cantidad { get; set; }
         public decimal? Precio { get; set; }
         public decimal? IVA { get; set; }
@@ -62,11 +75,11 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public decimal? DescuentoPorciento { get; set; }
         public decimal? IVA_Porciento { get; set; }
         public decimal? IVA_Importe { get; set; }
-
         public string? Presentacion { get; set; } = string.Empty;
         public string Nivel1 { get; set; } = string.Empty;
         public string Nivel2 { get; set; } = string.Empty;
         public string Nivel3 { get; set; } = string.Empty;
+        public int? IdEmpresa { get; set; }
     }
 
     public class VentasImpuestosDto
@@ -76,11 +89,12 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public int? Id_Venta { get; set; }
         public string Impuesto { get; set; } = string.Empty;
         public string TipoFactor { get; set; } = string.Empty;
-        public decimal? TasaImpuesto { get; set; }
+        public decimal TasaImpuesto { get; set; }
         public string ClaveSATImpuesto { get; set; } = string.Empty;
-        public decimal? BaseImpuesto { get; set; }
-        public decimal? ImporteImpuesto { get; set; }
-        public int? TipoOperacion { get; set; }
+        public decimal BaseImpuesto { get; set; }
+        public decimal ImporteImpuesto { get; set; }
+        public int TipoOperacion { get; set; }
+        public int? IdEmpresa { get; set; }
     }
 
     public class VentasImpuestosDetalleDto
@@ -91,12 +105,13 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public string Id_Producto { get; set; } = string.Empty;
         public string Impuesto { get; set; } = string.Empty;
         public string ClaveImpuesto { get; set; } = string.Empty;
-        public decimal? TasaImpuesto { get; set; }
+        public decimal TasaImpuesto { get; set; }
         public string TipoFactor { get; set; } = string.Empty;
-        public decimal? Base { get; set; }
-        public decimal? ImporteIVA { get; set; }
-        public decimal? ImporteVenta { get; set; }
+        public decimal Base { get; set; }
+        public decimal ImporteIVA { get; set; }
+        public decimal ImporteVenta { get; set; }
         public int? TipoOperacion { get; set; }
+        public int? IdEmpresa { get; set; }
     }
 
     public class VentasDesgloceTotalesDto
@@ -104,12 +119,13 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public string ClaveSimi { get; set; } = string.Empty;
         public DateTime FechaOperacion { get; set; }
         public int? Id_Venta { get; set; }
-        public decimal? PrecioSinIVA { get; set; }
-        public decimal? Importe { get; set; }
-        public decimal? Descuento { get; set; }
-        public decimal? Impuestos { get; set; }
-        public decimal? Total { get; set; }
+        public decimal PrecioSinIVA { get; set; }
+        public decimal Importe { get; set; }
+        public decimal Descuento { get; set; }
+        public decimal Impuestos { get; set; }
+        public decimal Total { get; set; }
         public int? TipoOperacion { get; set; }
+        public int? IdEmpresa { get; set; }
     }
 
     public class VentasImportesProductosDto
@@ -118,18 +134,19 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public string ClaveSimi { get; set; } = string.Empty;
         public int? Id_Venta { get; set; }
         public string Id_Producto { get; set; } = string.Empty;
-        public decimal? Precio { get; set; }
-        public decimal? PrecioUnitarioNeto { get; set; }
-        public decimal? Cantidad { get; set; }
-        public decimal? SubtotalNeto { get; set; }
-        public decimal? SubtotalConImpuestos { get; set; }
-        public decimal? DescuentoNeto { get; set; }
-        public decimal? DescuentoConImpuestos { get; set; }
-        public decimal? ImporteNeto { get; set; }
-        public decimal? ImporteConImpuestos { get; set; }
-        public decimal? ImpuestoCalculado { get; set; }
-        public decimal? Total { get; set; }
+        public decimal Precio { get; set; }
+        public decimal PrecioUnitarioNeto { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal SubtotalNeto { get; set; }
+        public decimal SubtotalConImpuestos { get; set; }
+        public decimal DescuentoNeto { get; set; }
+        public decimal DescuentoConImpuestos { get; set; }
+        public decimal ImporteNeto { get; set; }
+        public decimal ImporteConImpuestos { get; set; }
+        public decimal ImpuestoCalculado { get; set; }
+        public decimal Total { get; set; }
         public int? TipoOperacion { get; set; }
+        public int? IdEmpresa { get; set; }
     }
 
     public class VentasVendedorCuotasDto
@@ -138,24 +155,26 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public DateTime Fecha { get; set; }
         public string? IdVendedor { get; set; } = string.Empty;
         public string? Nombre { get; set; } = string.Empty;
-        public decimal? ImporteVenta { get; set; }
+        public decimal ImporteVenta { get; set; }
         public int? Transaccionesventa { get; set; }
-        public decimal? PorcVenta { get; set; }
-        public decimal? ImporteNaturistas { get; set; }
-        public decimal? PorcNaturistas { get; set; }
-        public decimal? ImporteNocturno { get; set; }
-        public decimal? MontoDescuento { get; set; }
-        public decimal? Menudeos { get; set; }
-        public decimal? MontoIva { get; set; }
+        public decimal PorcVenta { get; set; }
+        public decimal ImporteNaturistas { get; set; }
+        public decimal PorcNaturistas { get; set; }
+        public decimal ImporteNocturno { get; set; }
+        public decimal MontoDescuento { get; set; }
+        public decimal Menudeos { get; set; }
+        public decimal MontoIva { get; set; }
+        public int? IdEmpresa { get; set; }
     }
 
-    public class InventarioCosto
+
+
+    public class MySQLVentasDto
     {
         public string ClaveSimi { get; set; } = string.Empty;
-        public string Codigo { get; set; } = string.Empty;
-        public decimal? CostoUnitario { get; set; }
-        public DateTime FechaFactura { get; set; }
-        public DateTime? FechaSurtido { get; set; }
+        public DateTime FechaOperacion { get; set; }
+        public decimal Total { get; set; }
+        public int Tickets { get; set; }
     }
 
     public class SPOSInventario
@@ -185,7 +204,6 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public decimal? GranTotal { get; set; }
     }
 
-    // Converters
     public class FlexibleBoolConverter : JsonConverter<bool>
     {
         public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -206,6 +224,26 @@ namespace Soltec.Orquestacion.Entidades.DTOs
         public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
             => writer.WriteBooleanValue(value);
     }
+
+    // VENTAS EN LINEA
+    public class VentasLineaRootDto
+    {
+        [JsonPropertyName("soltec2_enlinea_ventas")]
+        public List<VentasLineaDto> Soltec2EnlineaVentas { get; set; } = new();
+    }
+
+    public class VentasLineaDto
+    {
+        [JsonPropertyName("fechaOperacion")]
+        public DateTime FechaOperacion { get; set; }
+
+        [JsonPropertyName("Total")]
+        public decimal Total { get; set; }
+
+        [JsonPropertyName("tickets")]
+        public int Tickets { get; set; }
+    }
+
 
     public class IntToStringConverter : JsonConverter<string>
     {

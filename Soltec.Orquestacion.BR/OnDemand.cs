@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using Soltec.Orquestacion.DA.Entities;
 using Soltec.Orquestacion.Entidades;
 using Soltec.Orquestacion.Entidades.DTOs;
 using System.IO.Compression;
@@ -20,36 +21,71 @@ namespace Soltec.Orquestacion.BR
             _apiSettings = apiSettings.Value;
         }
 
-        
+
         public async Task DescargarDatosOnDemand(CancellationToken cancellationToken)
         {
+            var servers = await DA.Orchestration.LoadServersDB();
+
             foreach (var baseUrl in _apiSettings.Urls)
             {
                 try
                 {
                     var client = _httpClientFactory.CreateClient();
-                    var url = $"{baseUrl}venta/DescargarOnDemandZip";
+
+                    // Para descargas grandes
+                    client.Timeout = Timeout.InfiniteTimeSpan;
+
+                    var url = $"{baseUrl.TrimEnd('/')}/venta/DescargarOnDemandZip";
 
                     _logger.LogInformation("Consumiendo API: {url}", url);
 
-                    using var response = await client.GetAsync(url, cancellationToken);
+                    using var response = await client.GetAsync(
+                        url,
+                        HttpCompletionOption.ResponseContentRead, // 👈 explícito y estable
+                        cancellationToken
+                    );
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        _logger.LogWarning("Error al consumir {url}. Status: {status}", url, response.StatusCode);
+                        var error = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                        _logger.LogWarning(
+                            "Error al consumir {url}. Status: {status}. Response: {error}",
+                            url,
+                            response.StatusCode,
+                            error
+                        );
+
                         continue;
                     }
 
-                    var fileBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-
-                    if (fileBytes == null || fileBytes.Length == 0)
+                    // Validación extra (evita nulls raros)
+                    if (response.Content == null)
                     {
-                        _logger.LogError("No se pudo descargar el archivo desde {url}", url);
+                        _logger.LogWarning("Respuesta sin contenido en {url}", url);
                         continue;
                     }
 
-                    await ProcesarZipEnMemoria(fileBytes, baseUrl, cancellationToken);
+                    await using var zipStream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
+                    if (zipStream == null || zipStream.Length == 0)
+                    {
+                        _logger.LogWarning("Stream vacío en {url}", url);
+                        continue;
+                    }
+
+                    await ProcesarZipDesdeStream(
+                        zipStream,
+                        baseUrl,
+                        cancellationToken,
+                        servers
+                    );
+
+                    _logger.LogInformation("Procesamiento OnDemand finalizado desde {url}", url);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Descarga OnDemand cancelada para {url}", baseUrl);
                 }
                 catch (Exception ex)
                 {
@@ -58,10 +94,9 @@ namespace Soltec.Orquestacion.BR
             }
         }
 
-        private async Task ProcesarZipEnMemoria(byte[] fileBytes, string baseUrl, CancellationToken cancellationToken)
+        private async Task ProcesarZipDesdeStream(Stream zipStream, string baseUrl, CancellationToken cancellationToken, List<OrquestadorServidorMySQL> orquestadorServidorMySQLs)
         {
-            using var memoryStream = new MemoryStream(fileBytes);
-            using var outerArchive = new ZipArchive(memoryStream, ZipArchiveMode.Read);
+            using var outerArchive = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
             foreach (var zipEntry in outerArchive.Entries)
             {
@@ -70,23 +105,18 @@ namespace Soltec.Orquestacion.BR
 
                 _logger.LogInformation("Procesando ZIP interno: {zip}", zipEntry.Name);
 
-                using var innerZipStream = zipEntry.Open();
-                using var innerMemoryStream = new MemoryStream();
-                await innerZipStream.CopyToAsync(innerMemoryStream, cancellationToken);
+                await using var innerZipStream = zipEntry.Open();
 
-                innerMemoryStream.Position = 0;
-                try
-                {
-
-                    await ProcesarZipInterno(innerMemoryStream, baseUrl, zipEntry.Name, cancellationToken);
-                }catch (Exception ex)
-                {
-                    _logger.LogError($"Se encontró un error al procesar: {zipEntry.Name}. Error: {ex.Message}");
-                }
+                await ProcesarZipInternoDesdeStream(
+                    innerZipStream,
+                    baseUrl,
+                    zipEntry.Name,
+                    cancellationToken, orquestadorServidorMySQLs
+                );
             }
         }
 
-        private async Task ProcesarZipInterno(MemoryStream zipStream,  string baseUrl,  string zipName, CancellationToken cancellationToken)
+        private async Task ProcesarZipInternoDesdeStream(Stream zipStream, string baseUrl, string zipName,  CancellationToken cancellationToken, List<OrquestadorServidorMySQL> orquestadorServidorMySQLs)
         {
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
@@ -100,17 +130,16 @@ namespace Soltec.Orquestacion.BR
                 if (!entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                using var entryStream = entry.Open();
+                await using var entryStream = entry.Open();
                 using var reader = new StreamReader(entryStream);
-                string jsonContent = await reader.ReadToEndAsync();
 
                 if (entry.Name.Equals($"{clave}_infoDB.json", StringComparison.OrdinalIgnoreCase))
                 {
-                    conectDB = JsonConvert.DeserializeObject<ConectDB>(jsonContent);
+                    conectDB = JsonConvert.DeserializeObject<ConectDB>(await reader.ReadToEndAsync());
                 }
                 else if (entry.Name.Equals($"{clave}_data.json", StringComparison.OrdinalIgnoreCase))
                 {
-                    salesDataDto = JsonConvert.DeserializeObject<OnDemandDTO>(jsonContent);
+                    salesDataDto = JsonConvert.DeserializeObject<OnDemandDTO>(await reader.ReadToEndAsync());
                 }
             }
 
@@ -120,35 +149,40 @@ namespace Soltec.Orquestacion.BR
                 return;
             }
 
-            // 🔥 PROCESO PRINCIPAL
-            await Soltec.Orquestacion.DA.Orchestration.SincronizaOnDemand(conectDB, salesDataDto, clave);
+            var server = orquestadorServidorMySQLs.Where(x => x.ClaveSimi == clave).FirstOrDefault();
+            if (server!=null)
+                await Soltec.Orquestacion.DA.Orchestration.SincronizaOnDemand(conectDB, salesDataDto, clave, server);
 
-            // 🧹 BORRAR ZIP REMOTO
             await EliminarZipRemoto(baseUrl, zipName, cancellationToken);
 
             _logger.LogInformation("ZIP interno procesado correctamente: {zip}", zipName);
         }
 
 
-
-        private async Task EliminarZipRemoto(string baseUrl, string fileName,  CancellationToken cancellationToken)
+        private async Task EliminarZipRemoto(string baseUrl, string fileName, CancellationToken cancellationToken)
         {
             var client = _httpClientFactory.CreateClient();
+
+            if (!baseUrl.EndsWith("/"))
+                baseUrl += "/";
+
             var url = $"{baseUrl}venta/EliminarOnDemandZip?fileName={Uri.EscapeDataString(fileName)}";
 
-            _logger.LogInformation($"Eliminando archivo: {fileName}, solicitando eliminación del ZIP: {url}", url);
+            _logger.LogInformation("Solicitando eliminación del ZIP: {url}", url);
 
-            using var response = await client.DeleteAsync(url, cancellationToken);
+            using var response = await client.PostAsync(url, null, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
                 _logger.LogWarning(
-                    "No se pudo eliminar el ZIP remoto {file}. Status: {status}",
+                    "No se pudo eliminar el ZIP remoto {file}. Status: {status}. Response: {response}",
                     fileName,
-                    response.StatusCode);
+                    response.StatusCode,
+                    content);
             }
         }
-
 
         private string ObtenerClaveDesdeZip(ZipArchive archive)
         {

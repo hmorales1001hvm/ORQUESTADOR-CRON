@@ -1,4 +1,6 @@
 ﻿using Newtonsoft.Json;
+using Soltec.Orquestacion.Entidades.DTOs;
+using System.Text.Json.Serialization;
 
 public class OnDemandDTO
 {
@@ -11,13 +13,10 @@ public class OnDemandDTO
     [JsonProperty("Producto_Combo")]
     public List<Producto_Combo> productoCombo { get; set; } = new();
 
-    // 🆕 NUEVO OBJETO
-    [JsonProperty("Inventarios")]
-    public List<Inventario> inventarios { get; set; } = new();
-
-    // =========================
-    // Clases internas
-    // =========================
+    [JsonProperty("SPOSInventario")]
+    public List<SPOSInventario> inventarios { get; set; } = new();
+    [JsonProperty("SPOSFacturas")]
+    public List<SPOSFacturas> facturas { get; set; } = new();
 
     public class ProductoRecomendado
     {
@@ -80,15 +79,34 @@ public class OnDemandDTO
         public decimal Descuento { get; set; }
     }
 
-    // 🆕 CLASE INVENTARIO
-    public class Inventario
+
+    public class SPOSInventario
     {
-        public string ClaveSimi { get; set; }
-        public DateTime? FechaOperacion { get; set; }   // NULL en SQL
-        public string Id_Producto { get; set; }           
+        public DateTime FechaOperacion { get; set; }
+        public string ClaveSimi { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
         public int? ExistenciaInicial { get; set; }
+        public int? ExistenciaFinal { get; set; }
         public int? Entradas { get; set; }
         public int? Salidas { get; set; }
-        public int? ExistenciaFinal { get; set; }
+        public string? Producto { get; set; }
+        public decimal? PrecioVenta { get; set; }
+        public int? IdEmpresa { get; set; }
+    }
+
+    public class SPOSFacturas
+    {
+        public DateTime FechaOperacion { get; set; }
+        public string ClaveSimi { get; set; } = string.Empty;
+        public string Serie { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonConverter(typeof(IntToStringConverter))]
+        public string Folio { get; set; } = string.Empty;
+        public int? Estatus { get; set; }
+        public bool? Electronica { get; set; }
+        public bool? NotaCredito { get; set; }
+        public decimal? GranTotal { get; set; }
+        public int? IdEmpresa { get; set; }
+
     }
 }
